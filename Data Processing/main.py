@@ -12,70 +12,26 @@ Author: [Your Name]
 Date: December 2025
 """
 
-import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
-import pickle
 from cfd_functions import (
     load_lift_drag_data, compute_statistics, extract_aoa_number,
     analyze_convergence, plot_convergence_analysis, create_data_summary_sheet, create_turbulence_comparison_sheet,
     create_coefficients_sheet, create_optimized_statistics_sheet, apply_excel_formatting,
     create_coefficient_graphs
 )
+from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS
 
 
 # ==================== USER CONFIGURATION ====================
 
 # Input/Output Directories
-BASE_PATH = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G"
-OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G"
+BASE_PATH = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G")
+OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G")
 
 # Configuration Extraction Method
 CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
-
-# Position Mapping (0-indexed for config parts split by '.')
-# For config '4.3.1.3.NG': [0]=4 (geom), [1]=3 (mesh), [2]=1 (turb), [3]=3 (ver), [4]=NG (grid)
-POSITION_MAP = {
-    'geometry': 0,       # Index 0: Geometry number
-    'mesh': 1,           # Index 1: Mesh number
-    'turbulence': 2,     # Index 2: Turbulence model number
-    'version': 3,        # Index 3: Version number
-    'grid': 4,           # Index 4: Grid type
-}
-
-# Value Mappings
-VALUE_MAPPINGS = {
-    'geometry': {
-        3: '2414_006_003',
-        4: '2414_006_004',
-    },
-    'mesh': {
-        1: 'Coarse',
-        2: 'Medium',
-        3: 'Baseline',
-        4: 'ExtraFine',
-        5: 'Ultra',
-    },
-    'turbulence': {
-        1: 'SST',
-        2: 'RNG',
-        3: 'RSM',
-    },
-    'version': {
-        1: 'V1',
-        2: 'V2',
-        3: 'V3',
-    },
-    'grid': {
-        'NG': 'No Grid',
-        'G': 'With Grid',
-    }
-}
-
-# Comparison Configurations
-COMPARISON_CONFIGS = {
-    '4.3.NG': ['4.3.1.NG', '4.3.2.NG', '4.3.3.NG'],
-}
 
 # Processing Parameters
 NUM_ITERATIONS = 150  # Number of last iterations to use for statistics
@@ -94,6 +50,14 @@ DYNAMIC_PRESSURE = 0.5 * AIR_DENSITY * VELOCITY**2
 Q_TIMES_A = DYNAMIC_PRESSURE * REFERENCE_AREA
 
 # ==================== MAIN WORKFLOW ====================
+
+def export_force_data(filepath, data, metadata, force_type):
+    """Helper to export force data to text file."""
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(f"# Configuration: {metadata['config']} | AoA: {metadata['aoa']} | Turbulence: {metadata['turbulence_model']}\n")
+        f.write(f"# Geometry: {metadata['geometry']} | Mesh: {metadata['mesh']} | Grid: {metadata['grid']}\n")
+        f.write(f"# Total Points: {len(data)}\n#\n")
+        np.savetxt(f, data, fmt='%.6f')
 
 def main():
     """Main execution function."""
@@ -118,11 +82,11 @@ def main():
     print(f"✓ Valid AoA folders loaded: {validation_report['valid_aoa_folders']}")
     print(f"✗ Skipped AoA folders: {validation_report['skipped_aoa_folders']}")
     
-    if validation_report['issues']:
+        if validation_report['issues']:
         print(f"\nIssues found ({len(validation_report['issues'])}):")
         for folder_path, issue in validation_report['issues']:
             # Extract just the AoA folder name for readability
-            aoa_folder = os.path.basename(folder_path)
+            aoa_folder = Path(folder_path).name
             print(f"  ⚠️  {aoa_folder}: {issue}")
     print("-" * 100)
     
@@ -132,53 +96,32 @@ def main():
     if len(all_data) > 5:
         print(f"  ... and {len(all_data) - 5} more")
     
-    # Save processed data (include validation report)
-    pickle_file = os.path.join(OUTPUT_DIR, 'processed_data.pkl')
-    with open(pickle_file, 'wb') as f:
-        pickle.dump({
-            'all_data': dict(all_data),
-            'validation_report': validation_report,
-            'config_info': {
-                'POSITION_MAP': POSITION_MAP,
-                'VALUE_MAPPINGS': VALUE_MAPPINGS,
-                'COMPARISON_CONFIGS': COMPARISON_CONFIGS,
-                'CONFIG_EXTRACTION_METHOD': CONFIG_EXTRACTION_METHOD,
-            },
-            'paths': {
-                'base_path': BASE_PATH,
-                'output_dir': OUTPUT_DIR,
-            }
-        }, f)
-    
-    print(f"\n✓ Data saved to: {pickle_file}")
-    print(f"  File size: {os.path.getsize(pickle_file) / 1024:.1f} KB")
-    
     # Export to text files
-    processed_data_dir = os.path.join(OUTPUT_DIR, "processed_data")
-    os.makedirs(processed_data_dir, exist_ok=True)
+    processed_data_dir = OUTPUT_DIR / "processed_data"
+    processed_data_dir.mkdir(parents=True, exist_ok=True)
     
     for (config, aoa), data in all_data.items():
         # Export lift
-        with open(os.path.join(processed_data_dir, f"{config}_lift.txt"), 'w', encoding='utf-8') as f:
-            f.write(f"# Configuration: {config} | AoA: {aoa} | Turbulence: {data['turbulence_model']}\n")
-            f.write(f"# Geometry: {data['geometry']} | Mesh: {data['mesh']} | Grid: {data['grid']}\n")
-            f.write(f"# Total Points: {len(data['lift'])}\n#\n")
-            for value in data['lift']:
-                f.write(f"{value}\n")
+        export_force_data(
+            processed_data_dir / f"{config}_lift.txt", 
+            data['lift'], 
+            {**data, 'config': config, 'aoa': aoa}, 
+            "Lift"
+        )
         
         # Export drag
-        with open(os.path.join(processed_data_dir, f"{config}_drag.txt"), 'w', encoding='utf-8') as f:
-            f.write(f"# Configuration: {config} | AoA: {aoa} | Turbulence: {data['turbulence_model']}\n")
-            f.write(f"# Geometry: {data['geometry']} | Mesh: {data['mesh']} | Grid: {data['grid']}\n")
-            f.write(f"# Total Points: {len(data['drag'])}\n#\n")
-            for value in data['drag']:
-                f.write(f"{value}\n")
+        export_force_data(
+            processed_data_dir / f"{config}_drag.txt", 
+            data['drag'], 
+            {**data, 'config': config, 'aoa': aoa}, 
+            "Drag"
+        )
     
     print(f"✓ Exported {len(all_data) * 2} text files to: {processed_data_dir}")
     
     # Create summary statistics text file
-    config_name = os.path.basename(BASE_PATH.rstrip(os.sep))
-    summary_file = os.path.join(OUTPUT_DIR, f"SUMMARY_{config_name}.txt")
+    config_name = BASE_PATH.name
+    summary_file = OUTPUT_DIR / f"SUMMARY_{config_name}.txt"
     
     with open(summary_file, 'w', encoding='utf-8') as f:
         f.write("=" * 100 + "\n")
@@ -267,7 +210,7 @@ def main():
 
         
         # Save convergence results
-        conv_pickle = os.path.join(OUTPUT_DIR, 'convergence_results.pkl')
+        conv_pickle = OUTPUT_DIR / 'convergence_results.pkl'
         with open(conv_pickle, 'wb') as f:
             pickle.dump({
                 'convergence_results': convergence_results,
@@ -280,25 +223,13 @@ def main():
         print(f"✓ Results saved to: {conv_pickle}")
         
         # Export convergence analysis text file
-        convergence_dir = os.path.join(OUTPUT_DIR, "convergence_analysis")
-        os.makedirs(convergence_dir, exist_ok=True)
+        convergence_dir = OUTPUT_DIR / "convergence_analysis"
+        convergence_dir.mkdir(parents=True, exist_ok=True)
         
-        convergence_text_file = os.path.join(convergence_dir, "Convergence_Analysis_Results.txt")
+        convergence_text_file = convergence_dir / "Convergence_Analysis_Results.txt"
         
         with open(convergence_text_file, 'w') as f:
-            f.write("=" * 120 + "\n")
-            f.write("CONVERGENCE ANALYSIS RESULTS\n")
-            f.write("=" * 120 + "\n\n")
-            
-            for (config, aoa), conv_data in convergence_results.items():
-                lift_results = conv_data['lift']
-                drag_results = conv_data['drag']
-                
-                lift_min_cov_idx = np.argmin(lift_results['cov'])
-                drag_min_cov_idx = np.argmin(drag_results['cov'])
-                
-                f.write(f"Configuration: {config}\n")
-                f.write(f"Angle of Attack: {aoa}\n")
+        print(f"\n✓ Convergence analysis completen")
                 f.write(f"Total Iterations: {len(all_data[(config, aoa)]['lift'])}\n")
                 f.write("-" * 120 + "\n\n")
                 
@@ -331,8 +262,8 @@ def main():
         print(f"✓ Convergence text file: {convergence_text_file}")
         
         # Export optimized data to text files
-        postprocessed_dir = os.path.join(convergence_dir, "optimized_data")
-        os.makedirs(postprocessed_dir, exist_ok=True)
+        postprocessed_dir = convergence_dir / "optimized_data"
+        postprocessed_dir.mkdir(parents=True, exist_ok=True)
         
         for (config, aoa), conv_data in convergence_results.items():
             data = all_data[(config, aoa)]
@@ -348,26 +279,20 @@ def main():
             optimized_drag = data['drag'][optimal_trim:]
             
             # Export optimized lift
-            with open(os.path.join(postprocessed_dir, f"{config}_lift_optimized.txt"), 'w') as f:
-                f.write(f"# Optimized Lift Data for {config}\n")
-                f.write(f"# Trimmed {optimal_trim} iterations from start\n")
-                f.write(f"# Using {len(optimized_lift)} iterations\n")
-                f.write(f"# Mean: {np.mean(optimized_lift):.6f} N\n")
-                f.write(f"# Std Dev: {np.std(optimized_lift):.6f} N\n")
-                f.write(f"# COV: {(np.std(optimized_lift)/np.mean(optimized_lift)*100):.2f} %\n#\n")
-                for value in optimized_lift:
-                    f.write(f"{value}\n")
+            export_force_data(
+                postprocessed_dir / f"{config}_lift_optimized.txt",
+                optimized_lift,
+                {**data, 'config': config, 'aoa': aoa},
+                f"Optimized Lift (Trimmed {optimal_trim})"
+            )
             
             # Export optimized drag
-            with open(os.path.join(postprocessed_dir, f"{config}_drag_optimized.txt"), 'w') as f:
-                f.write(f"# Optimized Drag Data for {config}\n")
-                f.write(f"# Trimmed {optimal_trim} iterations from start\n")
-                f.write(f"# Using {len(optimized_drag)} iterations\n")
-                f.write(f"# Mean: {np.mean(optimized_drag):.6f} N\n")
-                f.write(f"# Std Dev: {np.std(optimized_drag):.6f} N\n")
-                f.write(f"# COV: {(np.std(optimized_drag)/np.mean(optimized_drag)*100):.2f} %\n#\n")
-                for value in optimized_drag:
-                    f.write(f"{value}\n")
+            export_force_data(
+                postprocessed_dir / f"{config}_drag_optimized.txt",
+                optimized_drag,
+                {**data, 'config': config, 'aoa': aoa},
+                f"Optimized Drag (Trimmed {optimal_trim})"
+            )
         
         print(f"✓ Optimized data files: {postprocessed_dir}")
         print(f"  ({len(convergence_results) * 2} files created)")
@@ -380,8 +305,8 @@ def main():
     print("=" * 100)
     
     # Extract config name from BASE_PATH (last folder name)
-    config_name = os.path.basename(BASE_PATH.rstrip(os.sep))
-    excel_file = os.path.join(OUTPUT_DIR, f'SUMMARY_{config_name}.xlsx')
+    config_name = BASE_PATH.name
+    excel_file = OUTPUT_DIR / f'SUMMARY_{config_name}.xlsx'
     
     # Create workbook
     from openpyxl import Workbook
@@ -462,7 +387,7 @@ def main():
     print("\nGenerating graphs...")
     create_coefficient_graphs(all_data, coefficient_data, OUTPUT_DIR, POSITION_MAP, VALUE_MAPPINGS)
     
-    graphs_dir = os.path.join(OUTPUT_DIR, "coefficient_graphs")
+    graphs_dir = OUTPUT_DIR / "coefficient_graphs"
     print(f"\n✓ Graphs saved to: {graphs_dir}")
     print("✓ Organization: coefficient_graphs / turbulence_model / config /")
     print("✓ Each config contains: C_L_vs_AoA.png, C_D_vs_AoA.png, Drag_Polar.png, C_L_C_D_Combined.png")
