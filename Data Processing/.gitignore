@@ -1,0 +1,18 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Data outputs
+*.pkl
+*.xlsx
+*.csv
+*.txt
+
+# Generated directories
+processed_data/
+convergence_analysis/
+coefficient_graphs/
+optimized_data/
+
+# VS Code
+.vscode/

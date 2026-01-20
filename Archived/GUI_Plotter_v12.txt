@@ -1,0 +1,892 @@
+###### Gui Plotter ######
+# v1: Base GUI plotter.     5/2/2023
+# v2: Added:        6/17/2024
+#       a. Removed need to select final data file. Current working directory is now automatically determined based on where you run the script.
+#       b. Save previous user inputs to folder and read user inputs from last plotting done in cwd.
+#       c. Disclaimer only appears if previous inputs folder does not exist.
+#       d. Added option to plot cycle standard deviation on a second axis.
+#       e. Added option to retain cumulative and instantaneous data on same plot.
+#       f. Added text displaying final mean and st. dev. values to plot.
+#       g. Added functionality to automatically save figure to cwd instead of opening figure in separate GUI.
+# v3: Added:        8/27/2024
+#       a. "no-click" data-saving.    
+# v4: Added:        10/3/2024
+#       a."ts to remove" and "number of cycles" looping structure.  
+# v5: Added:        1/3/2025
+#       a. FFT loop into standard GUI Plotter.
+#       b. User choice between two main functions of script.
+#       c. Changed standard image file type to png.
+# v6: Added:        1/9/2025
+#       a. Option to run FFT functions and Standard Functions at the same time
+#       b. Data column number added to generated files
+#       c. Sig figs reduced in image titles
+#       d. All functions changed to be based on flow time, rather than timesteps
+#       e. Image format selector
+# v7: Added:        1/9/2025
+#       a. Function to generate text file with final metrics to prevent user from having to extract metrics from plots.        
+# v8: Added:        1/14/2025
+#       a. Efficiency improvements for CTA and standard deviation functions.
+#       b. Fixed issue breaking script if standard deviation option was selected. (indexing was flawed)
+#       c. Fixed image format selection prompt.
+#       d. Added total flow time to image titles.
+#       e. Changed format of final values shown on plots to scientific notation.
+#       f. Added +-5% bound option for standard deviation.
+#       g. Changed +-5% from a static value (5%) to user input for Data mean and standard deviation.
+#       h. Updated multiple GUI window designs to improve clarity.
+# v9: Added:        1/28/2025
+#       a. Modified nomeclature for +- % bounds for primary variable and standard deviation
+#       b. Modified handling of percentages from user input bounds
+#       c. Modified procedure for % bound specification
+# v10: Added:       1/29/2025
+#       a. "Data vs. Remaining Time" Plotter
+#       b. Modified format of text file containing final metrics
+# v11: Added:       2/3/2025
+#       a. Modified plotted metrics for "Data vs. Remaining Time" plots
+#       b. Modified plotting nomenclature
+# v12: Added:       4/29/2025
+#       a. CoV column in text file containing final metrics
+
+
+# Package import
+
+import os
+import tkinter as tk
+from tkinter import ttk
+from tkinter import *
+import csv
+import numpy as np
+from matplotlib import pyplot as plt
+from numpy.fft import fft, fftfreq
+import math
+import glob
+
+
+## Plotting Parameters
+
+parameters = {'axes.labelsize': 30, 'figure.figsize': (18, 9),
+          'axes.titlesize': 30, 'xtick.labelsize': 24, 
+          'ytick.labelsize': 24, 'legend.fontsize': 24,
+          'mathtext.default': 'regular', 'figure.constrained_layout.use': True}
+
+plt.rcParams.update(parameters)
+
+
+# Setting variables to store raw x and y data
+
+X1 = []
+Y1 = []
+
+
+# Creating function to populate previous user inputs
+
+def Load(entry, item):
+    if Preload == True:
+        if entry in Names:
+            ind = Names.index(entry)
+            item.insert(0, Prev_Data[ind])
+
+def Box_Load(entry):
+    if Preload == True:
+        if entry in Names:
+            ind = Names.index(entry)
+            if int(Prev_Data[ind]) == 1:
+                return 1
+            else:
+                return 0
+            
+def Combo_Load(entry):
+    if Preload == True:
+        if entry in Names:
+            ind = Names.index(entry)
+            return Prev_Data[ind]
+
+
+## Establish current working directory based on where the PowerShell window was launched
+
+cwd = os.getcwd()
+
+
+## Look for folder with previous inputs
+
+Preload = os.path.exists(cwd + '/Prev_inp')
+
+if Preload == True:
+   
+    Names = []
+    Prev_Data = []
+
+      
+    with open('Prev_inp/inputs.txt', 'r') as datafile:
+        plotting = csv.reader(datafile, delimiter=':')
+        for ROWS in plotting:
+            Names.append(ROWS[0])
+            Prev_Data.append(ROWS[1])
+    
+    inp = open('Prev_inp/inputs.txt', 'w+')
+   
+    
+
+elif Preload == False:
+   
+   # Inital instructions pop-up window
+
+    popup = tk.Tk()
+    popup.wm_title("Important Notice!")
+    label = ttk.Label(popup, text='''Disclaimer:
+
+    Please open the "Getting Started with GUI Plotter" document
+    if you have never used this script before. It contains 
+    important information pertaining to functionality and 
+    preparation for using the script''', justify = 'center')
+    label.pack(side="top", fill="x", pady=10, padx = 5)
+    B1 = Button(popup, text="Done", command = lambda: [popup.quit(), popup.destroy()])
+    B1.pack(pady = 5)
+    popup.attributes('-topmost',True)
+
+
+    popup.mainloop()
+   
+
+   # Make directory and file to house inputs
+
+    os.makedirs(cwd + '/Prev_inp')
+    inp = open('Prev_inp/inputs.txt', 'w+')
+
+
+## Locate data file
+
+file = cwd + '/Final_Data.txt'
+
+
+## Selecting FFT or Standard GUI Plotting ##
+
+script_function = []
+
+
+## Function to gather script function after "Done" button is pushed on "FFT vs. Standard" selection window
+
+def get_data0():
+
+    script_function.append(str(fft_vs_stand.current()))
+
+
+## Creating GUI window for dataset information
+
+function_select = tk.Tk()
+function_select.wm_title('Select Script Function')
+
+
+# Combobox creation 
+
+combo_0 = tk.StringVar() 
+fft_vs_stand = ttk.Combobox(function_select, width = 23, textvariable = combo_0) 
+  
+
+# Adding combobox drop down list 
+
+fft_vs_stand_label = Label(function_select, text = '''
+Select the main script function.
+                           
+If you are unsure what to choose
+or you are unsure what an "FFT" is, 
+simply select "Standard GUI Plotter''')
+fft_vs_stand_label.grid(row = 0, column = 0, padx = 5, pady = 5)
+
+fft_vs_stand['values'] = (' Standard GUI Plotter ',  
+                          ' FFT Plotter ',
+                          ' Both Plotters ') 
+  
+fft_vs_stand.grid(row = 1, column = 0, padx = 5, pady = 5) 
+fft_vs_stand.current(Combo_Load('function_select')) 
+
+
+# Closing Button Creation
+
+function_select_button = Button(function_select, text="Done", command = lambda: [get_data0(), function_select.quit(), function_select.destroy()])
+function_select_button.grid(row = 2, column = 0, padx = 5, pady = 5)
+function_select.attributes('-topmost',True)
+function_select.mainloop()
+
+inp.write('function_select:' + str(script_function[0]) +'\n')
+
+
+## Selecting Image Format ##
+
+image_format = []
+
+## Function to gather script function after "Done" button is pushed on "FFT vs. Standard" selection window
+
+def get_image():
+
+    image_format.append(str(image_format_var.current()))
+
+
+## Creating GUI window for dataset information
+
+image_select = tk.Tk()
+image_select.wm_title('Select Image Format')
+
+
+# Combobox creation 
+
+combo_1 = tk.StringVar() 
+image_format_var = ttk.Combobox(image_select, width = 23, textvariable = combo_1) 
+  
+
+# Adding combobox drop down list 
+
+image_format_label = Label(image_select, text = '''
+Select the image format for
+the final output images.''')
+image_format_label.grid(row = 0, column = 0, padx = 5, pady = 5)
+
+image_format_var['values'] = (' .svg ',  
+                          ' .tif ',
+                          ' .png ') 
+  
+image_format_var.grid(row = 1, column = 0, padx = 5, pady = 5) 
+image_format_var.current(Combo_Load('image_format')) 
+
+
+# Closing Button Creation
+
+image_format_button = Button(image_select, text="Done", command = lambda: [get_image(), image_select.quit(), image_select.destroy()])
+image_format_button.grid(row = 2, column = 0, padx = 5, pady = 5)
+image_select.attributes('-topmost',True)
+if Preload == True:
+    image_select.after(10, lambda: [get_image(), image_select.quit(), image_select.destroy()])
+image_select.mainloop()
+
+inp.write('image_format:' + str(image_format[0]) +'\n')
+
+if int(image_format[0]) == 0:
+    ext = '.svg'
+if int(image_format[0]) == 1:
+    ext = '.tif'
+if int(image_format[0]) == 2:
+    ext = '.png'
+
+## Base data variable that stores the following info:
+#   0: Column number of flow time data
+#   1: Column number of data of interest
+
+indices = []
+
+
+## Function to gather indices after "Done" button is pushed on dataset information GUI window
+
+def get_data1():
+
+    indices.append(int(flow_time.get()))
+    indices.append(int(dataset_column.get()))
+
+
+## Creating GUI window for dataset information
+
+select = tk.Tk()
+select.wm_title('Define Datasets')
+
+
+# Flow Time Column # Input
+
+flow_time = Entry(select)
+Load('flow_time', flow_time)
+flow_time.grid(row = 1, column = 0, pady = 5, padx = 15)
+flow_time_label = Label(select, text = 'Flow Time Column #')
+flow_time_label.grid(row = 0, column = 0, pady = 10, padx = 5)
+
+
+# Dataset Column # Input
+
+dataset_column = Entry(select)
+Load('dataset_column', dataset_column)
+dataset_column.grid(row = 1, column = 1, pady = 5, padx = 15)
+dataset_column_label = Label(select, text = 'Dataset Column #')
+dataset_column_label.grid(row = 0, column = 1, pady = 10, padx = 5)
+
+
+# Closing Button Creation
+
+select_button = Button(select, text="Done", command = lambda: [get_data1(), select.quit(), select.destroy()])
+select_button.grid(row = 2, column = 1, padx = 5, pady = 5)
+select.attributes('-topmost',True)
+if Preload == True:
+    select.after(10, lambda: [get_data1(), select.quit(), select.destroy()])
+select.mainloop()
+
+inp.write('flow_time:' + str(indices[0]) +'\n')
+inp.write('dataset_column:' + str(indices[1]) +'\n')
+
+
+## Extract flow time for user info
+
+a = open(file)
+test = np.genfromtxt(a, delimiter=' ', skip_header=0)
+a.close()
+
+flow_time_for_info = test[:,indices[0]]
+
+count = flow_time_for_info[-1] - flow_time_for_info[0]
+end = flow_time_for_info[-1]
+
+
+## Define intervals for data removal
+
+rounds_info = []
+
+def get_rounds():
+
+    rounds_info.append(float(interval_start.get()))
+    rounds_info.append(float(interval_end.get()))
+    rounds_info.append(int(interval_num.get()))
+
+rounds = tk.Tk()
+rounds.wm_title('Define Intervals for Data Removal')
+
+flow_time_count = Label(rounds, text = 'Total flow time: ' + str(count))
+flow_time_count.grid(row = 0, column = 0, padx = 10, pady = 15)
+flow_time_end_count = Label(rounds, text = 'Ending flow time: ' + str(end))
+flow_time_end_count.grid(row = 0, column = 1, padx = 10, pady = 5)
+interval_start = Entry(rounds)
+interval_start.grid(row = 1, column = 1, padx = 10, pady = 5)
+interval_start_label = Label(rounds, text = 'Minimum amount of flow time [s] to remove: ')
+interval_start_label.grid(row = 1, column = 0, padx = 10, pady = 5)
+interval_end = Entry(rounds)
+interval_end.grid(row = 2, column = 1, padx = 10, pady = 5)
+interval_end_label = Label(rounds, text = 'Maximum amount of flow time [s] to remove: ')
+interval_end_label.grid(row = 2, column = 0, padx = 10, pady = 5)
+interval_num = Entry(rounds)
+interval_num.grid(row = 3, column = 1, padx = 10, pady = 5)
+interval_num_label = Label(rounds, text = 'Total number of flow time removals to test (including min and max): ')
+interval_num_label.grid(row = 3, column = 0, padx = 10, pady = 5)
+
+
+# Closing Button Creation
+
+rounds_button = Button(rounds, text="Done", command = lambda: [get_rounds(), rounds.quit(), rounds.destroy()])
+rounds_button.grid(row = 4, column = 1, padx = 10, pady = 5)
+rounds.attributes('-topmost',True)
+rounds.mainloop()
+
+rounds_info_final = np.linspace(rounds_info[0], rounds_info[1], rounds_info[2])
+
+final_results = open('Final_Results-Data_Column_'+str(indices[1])+'.txt', 'w+')
+
+if int(script_function[0]) == 0:
+    final_results.write('Cut_Time\tRemaining_Time\tMean\tStandard_Deviation\tCoV\n')
+if int(script_function[0]) == 1:
+    final_results.write('Cut_Time\tRemaining_Time\tFFT_Length_Padded\tFFT_Sampling_Rate[Hz]\tFFT_Peak_Frequency[Hz]\tFFT_Magnitude\tFFT_Nyquist\n')
+if int(script_function[0]) == 2:
+    final_results.write('Cut_Time\tRemaining_Time\tMean\tStandard_Deviation\tCoV\tFFT_Length_Padded\tFFT_Sampling_Rate[Hz]\tFFT_Peak_Frequency[Hz]\tFFT_Magnitude\tFFT_Nyquist\n')
+
+for i in range(len(rounds_info_final)):
+
+    ########################################### Inputs ############################################
+
+    file = 'Final_Data.txt'  # Full file name
+    flow_time_ind = indices[0]   # Index of flow time
+    dataset_ind = indices[1]     # Index of dataset to be transformed
+    trim_time = float(rounds_info_final[i])     # Amount of flow time to be trimmed from the beginning of the data
+
+    ###############################################################################################
+
+
+    # Opening file and extracting data
+
+    f = open(file)
+    raw_data = np.genfromtxt(f, delimiter=' ', skip_header=0)
+    f.close()
+
+    trim_data = raw_data[np.logical_not(raw_data[:,flow_time_ind] < trim_time + raw_data[0,flow_time_ind])]
+
+    flow_time = trim_data[:,flow_time_ind]
+    y = trim_data[:,dataset_ind]
+
+
+    if int(script_function[0]) == 0 or int(script_function[0]) == 2:    # Standard GUI Plotting
+
+        if i == 0:
+
+            ## Base data variable that stores the following info:
+            #   0: Whether or not legend is included
+            #   1: Whether or not standard deviation is plotted
+            #   2: Time average vs. instantaneous combobox selection
+
+            data = []
+
+
+            ## Function to gather data after "Done" button is pushed on dataset information GUI window
+
+            def get_data1():
+
+                data.append(int(check1.get()))
+                data.append(int(check2.get()))
+                data.append(str(ta_vs_inst.current()))
+
+
+            ## Creating GUI window for dataset information
+
+            select = tk.Tk()
+            select.wm_title('Plotting Options')
+
+
+            # Checkboxes for Standard Dev and Legend
+
+            check1 = tk.IntVar(value = Box_Load('Legend'))
+            check2 = tk.IntVar(value = Box_Load('Std. Dev.'))
+            chk1 = tk.Checkbutton(select, text='Include Legend', variable=check1)
+            chk1.grid(row = 2, column = 0, padx = 5, pady = 5)
+            chk2 = tk.Checkbutton(select, text='Standard Deviation', variable=check2)
+            chk2.grid(row = 1, column = 0, padx = 5, pady = 5)
+
+
+            # Combobox creation 
+
+            combo_2 = tk.StringVar() 
+            ta_vs_inst = ttk.Combobox(select, width = 30, textvariable = combo_2) 
+            
+
+            # Adding combobox drop down list 
+
+            ta_vs_inst['values'] = (' Instantaneous Only ',  
+                                    ' Cumulative TA Only ', 
+                                    ' Instantaneous + Cumulative TA ') 
+            
+            ta_vs_inst.grid(row = 1, column = 1, padx = 5, pady = 5) 
+            ta_vs_inst.current(Combo_Load('combo')) 
+
+
+            # Labels
+
+            Misc_plotting = Label(select, text = 'Misc. Plotting Options')
+            Misc_plotting.grid(row = 0, column = 0)
+
+            ta_vs_inst_label = Label(select, text = 'Time Averaging Options')
+            ta_vs_inst_label.grid(row = 0, column = 1)
+
+
+            # Closing Button Creation
+
+            select_button = Button(select, text="Done", command = lambda: [get_data1(), select.quit(), select.destroy()])
+            select_button.grid(row = 3, column = 1, padx = 5, pady = 5)
+            select.attributes('-topmost',True)
+            if Preload == True:
+                select.after(10, lambda: [get_data1(), select.quit(), select.destroy()])
+            select.mainloop()
+
+            inp.write('Legend:' + str(data[0]) +'\n')
+            inp.write('Std. Dev.:' + str(data[1]) +'\n')
+            inp.write('combo:' + str(data[2]) +'\n')
+
+
+            ## Function to gather data after "Done" button is pushed on X and Y bound GUI window
+
+            def get_data2():
+            
+                bound_checkboxes.append(int(check3.get()))
+                bound_checkboxes.append(int(check4.get()))
+                bound_checkboxes.append(int(check5.get()))
+                bound_checkboxes.append(int(check6.get()))
+
+                if bound_checkboxes[0] == 0:
+                
+                    bound_list_x.append(float(x_lower.get()))
+                    bound_list_x.append(float(x_upper.get()))
+                
+                if bound_checkboxes[1] == 0 and bound_checkboxes[2] == 0:
+
+                    bound_list_y.append(float(y_lower.get()))
+                    bound_list_y.append(float(y_upper.get()))
+
+                if bound_checkboxes[2] == 1:
+
+                    pct_x_list.append(float(x_pct.get()))
+
+                if bound_checkboxes[3] == 1:
+
+                    pct_y_list.append(float(y_pct.get()))
+
+
+            ## Creating GUI window for X and Y bound specifications
+
+            bounds = tk.Tk()
+            bounds.wm_title('X and Y Bounds')
+
+            bound_list_x = []
+            bound_list_y = []
+            bound_checkboxes = []
+            pct_x_list = []
+            pct_y_list = []
+
+
+            # Checkboxes for Automating Bounds
+
+            check3 = tk.IntVar(value = Box_Load('check3'))
+            check4 = tk.IntVar(value = Box_Load('check4'))
+            check5 = tk.IntVar(value = Box_Load('check5'))
+            check6 = tk.IntVar(value = Box_Load('check6'))
+            chk3 = tk.Checkbutton(bounds, text='Automate X Bounds', variable=check3)
+            chk3.grid(row = 7, column = 1, padx = 5, pady = 5)
+            chk4 = tk.Checkbutton(bounds, text='Automate Y Bounds', variable=check4)
+            chk4.grid(row = 7, column = 2, padx = 5, pady = 5)
+            chk5 = tk.Checkbutton(bounds, text= u"\u00B1" + r'A% of Mean Value of Dataset', variable=check5)
+            chk5.grid(row = 5, column = 2, padx = 5, pady = 5)
+            chk6 = tk.Checkbutton(bounds, text= u"\u00B1" + r'B% of Mean Value of Standard Deviation', variable=check6)
+            chk6.grid(row = 6, column = 2, padx = 5, pady = 5)
+
+
+            # Lower X bound input
+
+            x_lower = Entry(bounds)
+            Load('x_lower', x_lower)
+            x_lower.grid(row = 2, column = 1, pady = 10, padx = 5)
+
+
+            # Upper X bound input
+
+            x_upper = Entry(bounds)
+            Load('x_upper', x_upper)
+            x_upper.grid(row = 3, column = 1, pady = 10, padx = 5)
+
+
+            # Lower Y bound input
+
+            y_lower = Entry(bounds)
+            Load('y_lower', y_lower)
+            y_lower.grid(row = 2, column = 2, pady = 10, padx = 5)
+
+
+            # Upper Y bound input
+
+            y_upper = Entry(bounds)
+            Load('y_upper', y_upper)
+            y_upper.grid(row = 3, column = 2, pady = 10, padx = 5)
+
+
+            # Data +- X% Input
+
+            x_pct = Entry(bounds)
+            Load('x_pct', x_pct)
+            x_pct.grid(row = 5, column = 1, pady = 10, padx = 5)
+
+
+            # Std. Dev. +- Y% Input
+
+            y_pct = Entry(bounds)
+            Load('y_pct', y_pct)
+            y_pct.grid(row = 6, column = 1, pady = 10, padx = 5)
+
+
+            # Labels
+
+            Manual_disclaimer = Label(bounds, text = 'Manual Bounds Options', font = ('bold'))
+            Manual_disclaimer.grid(row = 0, column = 1)
+
+            X_bound_label = Label(bounds, text = 'X bounds')
+            X_bound_label.grid(row = 1, column = 1)
+
+            Y_bound_label = Label(bounds, text = 'Y bounds')
+            Y_bound_label.grid(row = 1, column = 2)
+
+            lower_bound_label = Label(bounds, text = 'Lower')
+            lower_bound_label.grid(row = 2, column = 0)
+
+            upper_bound_label = Label(bounds, text = 'Upper')
+            upper_bound_label.grid(row = 3, column = 0)
+
+            Automation_disclaimer = Label(bounds, text = 'Automated Bounds Options', font = ('bold'))
+            Automation_disclaimer.grid(row = 4, column = 1)
+
+            x_pct_label = Label(bounds, text = u"\u00B1" + r'A% for Dataset Bounds'+'\n(Only requires input if related checkbox is active)')
+            x_pct_label.grid(row = 5, column = 0)
+
+            y_pct_label = Label(bounds, text = u"\u00B1" + r'B% for Standard Deviation Bounds'+'\n(Only requires input if related checkbox is active)')
+            y_pct_label.grid(row = 6, column = 0)
+
+
+            # Closing Button
+
+            bound_button = Button(bounds, text="Done", command = lambda: [get_data2(), bounds.quit(), bounds.destroy()])
+            bound_button.grid(row = 8, column = 2, padx = 5, pady = 5)
+            bounds.attributes('-topmost',True)
+            if Preload == True:
+                bounds.after(10, lambda: [get_data2(), bounds.quit(), bounds.destroy()])
+            bounds.mainloop()
+
+            inp.write('check3:' + str(bound_checkboxes[0]) +'\n')
+            inp.write('check4:' + str(bound_checkboxes[1]) +'\n')
+            inp.write('check5:' + str(bound_checkboxes[2]) +'\n')
+            inp.write('check6:' + str(bound_checkboxes[3]) +'\n')
+            if bound_list_x:
+                inp.write('x_lower:' + str(bound_list_x[0]) +'\n')
+                inp.write('x_upper:' + str(bound_list_x[1]) +'\n')
+            if not bound_list_x:
+                inp.write('x_lower:' + ' ' +'\n')
+                inp.write('x_upper:' + ' ' +'\n')
+            if bound_list_y:
+                inp.write('y_lower:' + str(bound_list_y[0]) +'\n')
+                inp.write('y_upper:' + str(bound_list_y[1]) +'\n')
+            if not bound_list_y:
+                inp.write('y_lower:' + ' ' +'\n')
+                inp.write('y_upper:' + ' ' +'\n')
+            if pct_x_list:
+                inp.write('x_pct:' + str(pct_x_list[0]) +'\n')
+            if not pct_x_list:
+                inp.write('x_pct:' + ' ' +'\n')
+            if pct_y_list:
+                inp.write('y_pct:' + str(pct_y_list[0]) +'\n')
+            if not pct_y_list:
+                inp.write('y_pct:' + ' ' +'\n')
+
+
+            ## Axis Labels
+
+            # Closing button functions for Axis Labels window
+
+            def get_data3():
+            
+                label_list.append(str(xlabel.get()))
+                label_list.append(str(ylabel.get()))
+
+
+            ## Creating GUI window for X and Y bound labels
+
+            labels = tk.Tk()
+            labels.wm_title('X and Y Bounds')
+
+            label_list = []
+
+
+            # X Label
+
+            xlabel = Entry(labels)
+            Load('xlabel', xlabel)
+            xlabel.grid(row = 1, column = 0, pady = 10, padx = 5)
+
+
+            # Y Label
+
+            ylabel = Entry(labels)
+            Load('ylabel', ylabel)
+            ylabel.grid(row = 1, column = 1, pady = 10, padx = 5)
+
+
+            # Labels
+
+            x_label_label = Label(labels, text = 'X Label')
+            x_label_label.grid(row = 0, column = 0, pady = 10, padx = 5)
+
+            y_label_label = Label(labels, text = 'Y Label')
+            y_label_label.grid(row = 0, column = 1, pady = 10, padx = 5)
+
+
+            # Closing Button
+
+            label_button = Button(labels, text="Done", command = lambda: [get_data3(), labels.quit(), labels.destroy()])
+            label_button.grid(row = 2, column = 1, padx = 5, pady = 5)
+            labels.attributes('-topmost',True)
+            if Preload == True:
+                labels.after(10, lambda: [get_data3(), labels.quit(), labels.destroy()])
+            labels.mainloop()
+
+            inp.write('xlabel:' + str(label_list[0]) +'\n')
+            inp.write('ylabel:' + str(label_list[1]) +'\n')
+
+
+            ## Time Averaging function that is deployed if "Cumulative TA" is selected
+
+            def TA(flow_time, dataset, std):
+
+                temp = []
+                sum_x = dataset[0]
+                sum_x2 = dataset[0]**2
+                stdev = []
+                ta = dataset[0]
+                n = 1
+                
+                for j in range(1,len(dataset)):
+                    
+                    tp_a = flow_time[j] - flow_time[0]
+                    dt = flow_time[j] - flow_time[j-1]
+                    tp = tp_a
+                    ti = tp+dt
+                    ta = (ta*tp + dt*dataset[j]) / ti
+                    temp.append(ta)
+
+                    if std == True:
+                        
+                        n += 1
+                        sum_x += dataset[j]
+                        sum_x2 += dataset[j]**2
+                        mean = sum_x / n
+                        stdev.append(((sum_x2 / n) - (mean * mean))**0.5)
+                
+                return temp, stdev
+
+        if (int(data[2]) != 0) or (int(data[1]) == 1):
+
+            if int(data[1]) == 1:
+
+                Y_TA, Y_std = TA(flow_time, y, True)
+
+            else:
+
+                Y_TA, Y_std = TA(flow_time, y, False)
+
+
+        ## Data Plotting based on user selection of plotting "rounds"
+
+        fig, ax = plt.subplots()
+
+        if int(data[2]) == 0:
+            ax.plot(flow_time,y, label = 'Instantaneous')
+        if int(data[2]) == 1:
+            ax.plot(flow_time[1:],Y_TA, label = 'CTA')
+        if int(data[2]) == 2:
+            ax.plot(flow_time,y, label = 'Instantaneous')
+            ax.plot(flow_time[1:],Y_TA, label = 'CTA')
+
+
+        # Plotting Standard Deviation
+
+        if data[1] == 1:
+
+            ax2=ax.twinx()
+            ax2.plot(flow_time[1:], Y_std, ls = '--', color = 'black', label = 'Standard Deviation')
+            ax2.set_ylabel('Standard Deviation')
+
+
+        ## Conditional plot limits based on user inputs
+
+        if bound_checkboxes[0] == 0:
+        
+            plt.xlim(bound_list_x[0], bound_list_x[1])
+
+        if bound_checkboxes[1] == 0 and bound_checkboxes[2] == 0:
+        
+            ax.set_ybound(bound_list_y[0], bound_list_y[1])
+
+        if bound_checkboxes[1] == 0 and bound_checkboxes[2] == 1:
+        
+            ax.set_ybound((np.mean(y) - (pct_x_list[0]/100*np.mean(y))), (np.mean(y) + (pct_x_list[0]/100*np.mean(y))))
+
+        if bound_checkboxes[1] == 0 and bound_checkboxes[3] == 1:
+
+            if data[1] == 1:
+
+                ax2.set_ybound((Y_std[-1] - (pct_y_list[0]/100*Y_std[-1])), (Y_std[-1] + (pct_y_list[0]/100*Y_std[-1])))
+
+
+        ## Plot Labels
+
+        ax.set_xlabel(label_list[0])
+        ax.set_ylabel(label_list[1])
+
+
+        ## Legend Selection
+
+        if data[0] == 1:
+            ax.legend(loc = 'upper left', bbox_to_anchor = (1.1, 1.0))
+
+            if data[1] == 1:
+                ax2.legend(loc = 'lower left', bbox_to_anchor = (1.1, 0.0))
+
+
+        ## Display Plot
+
+        plt.text(0.5, 1.01, 'Final Values:\nMean: '+str(format(np.mean(y), '.2e'))+'\nSt. Dev.: '+str(format(np.std(y), '.2e')), horizontalalignment='center', verticalalignment='bottom', transform=ax.transAxes, fontsize=24)
+        plt.savefig(label_list[1]+'-'+str(format(trim_time,'.2e'))+' s trimmed out of '+str(format(count,'.2e'))+' s-data_column_'+str(dataset_ind)+ext)
+        # plt.show()
+        plt.close() 
+
+
+    if int(script_function[0]) == 1 or int(script_function[0]) == 2:      # If FFT Plotter was selected
+
+        # FFT Analysis Function without plotting and with zero padding 
+        def fft_analysis_pad_no_plot(y, N, T): 
+            y_clean = np.zeros(len(y))
+            y_clean[:] = y[:] - np.mean(y[:]) # Remove the mean (eliminates point) 
+            NFFT = 2**(math.ceil(math.log(len(y_clean), 2))) # Calculate number of points with the next highest power of 2 
+            yf = fft(y_clean, NFFT) # Compute the complex FFT including zero padding up to next power of 2
+            xf = fftfreq(NFFT, T)[:NFFT//2] # Generate frequency data
+            yf_amp = (2.0/N)*np.abs(yf[:NFFT//2]) # Compute the single-sided amplitude spectrum of y 
+
+            yf_max_loc = np.argmax(yf_amp) # Find location of max amplitude
+            xf_peak = xf[yf_max_loc] # Find corresponding frequency value 
+            yf_max = max(yf_amp) 
+
+            return xf, yf_amp, xf_peak, yf_max
+
+
+        plt.figure(figsize=(15.5, 7.5)) 
+
+        # Zero Padded
+        N = len(y) 
+        T = (flow_time[-1] - flow_time[0])/(len(flow_time) - 1)
+        xf, yf_amp, xf_peak, yf_max = fft_analysis_pad_no_plot(y, N, T)
+        plt.plot(xf, yf_amp, color='red', alpha=0.7, label='Padded\n'+'Frequency='+"{:.2e}".format(xf_peak)+'\nMagnitude='+"{:.2e}".format(yf_max))
+        plt.plot(xf_peak, yf_max, color='red', marker='o')
+        print('Length, Padded:', N)
+        print('Sampling Rate [Hz]:', 1/T) 
+        print('Peak Frequency [Hz]:', xf_peak) 
+
+        # Nyquist Frequency
+        nyquist = 0.5*(1/T)
+        print('Nyquist =', nyquist) 
+
+
+        # Plot settings
+        plt.xlim(left=-100, right=2000) # Set x-axis limits to display better 
+        plt.xlabel('Frequency [Hz]') # x-axis label 
+        plt.ylabel('Amplitude') # y-axis label 
+        plt.legend()
+        plt.tight_layout() 
+        plt.savefig('FFT-'+str(format(trim_time,'.2e'))+' s trimmed out of '+str(format(count,'.2e'))+' s-data_column_'+str(dataset_ind)+ext)  
+        # plt.show()
+        plt.close() 
+
+
+    # Final Results Printing
+    
+    if int(script_function[0]) == 0:
+        final_results.write(str(format(rounds_info_final[i], '.2e'))+'\t'+str(format(count-rounds_info_final[i], '.2e'))
+                            +'\t'+str(format(np.mean(y), '.2e'))+'\t'+str(format(np.std(y), '.2e'))+'\t'+str(format(np.std(y)/np.mean(y), '.2e'))+'\n')
+    if int(script_function[0]) == 1:
+        final_results.write(str(format(rounds_info_final[i], '.2e'))+'\t'+str(format(count-rounds_info_final[i], '.2e'))
+                            +'\t'+str(N)+'\t'+str(format((1/T), '.5e'))+'\t'
+                            +str(format(xf_peak, '.5e'))+'\t'+str(format(yf_max, '.5e'))+'\t'+str(format(nyquist, '.5e'))+'\n')
+    if int(script_function[0]) == 2:
+        final_results.write(str(format(rounds_info_final[i], '.2e'))+'\t'+str(format(count-rounds_info_final[i], '.2e'))
+                            +'\t'+str(format(np.mean(y), '.2e'))+'\t'+str(format(np.std(y), '.2e'))+'\t'+str(format(np.std(y)/np.mean(y), '.2e'))
+                            +'\t'+str(N)+'\t'+str(format((1/T), '.5e'))+'\t'
+                            +str(format(xf_peak, '.5e'))+'\t'+str(format(yf_max, '.5e'))+'\t'+str(format(nyquist, '.5e'))
+                            +'\n')
+
+final_results.close()
+
+if len(rounds_info_final) > 1:
+
+    file_2 = glob.glob('Final_Results-Data_Column_*.txt')
+
+    plot_names = []
+
+    with open(file_2[0], 'r') as datafile_2:
+        plotting_2 = csv.reader(datafile_2, delimiter='\t')
+        for ROWS_2 in plotting_2:
+            plot_names.append(ROWS_2)
+
+    plot_names = plot_names[0]
+
+    for i in range(2, len(plot_names)):
+        name = plot_names[i]
+        b = open(file_2[0])
+        final_data = np.genfromtxt(b, delimiter='\t', skip_header=1)
+        b.close()
+        x_data = final_data[:,1]
+        y_data = final_data[:,i]
+        plt.plot(x_data,y_data)
+        plt.xlabel('Remaining Time [s]') # x-axis label 
+        plt.ylabel(name) # y-axis label 
+        plt.tight_layout() 
+        plt.savefig(name+' vs. Remaining-Time Data_Column_'+str(indices[1])+ext)
+        plt.close() 
