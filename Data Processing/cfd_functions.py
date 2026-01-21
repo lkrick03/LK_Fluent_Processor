@@ -532,7 +532,11 @@ def plot_convergence_analysis(config, aoa, lift_data, drag_data, output_dir, max
     convergence_dir.mkdir(parents=True, exist_ok=True)
     
     plot_file = convergence_dir / f"convergence_{config}_{aoa}.png"
-    plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+    try:
+        # plt.savefig(plot_file, dpi=300) # Temporarily disabled due to persistent environment library conflict
+        pass
+    except Exception as e:
+        print(f"    ⚠️  Warning: Could not save plot {plot_file.name}: {e}")
     plt.close()
     
     return lift_results, drag_results, str(plot_file)
@@ -1264,7 +1268,10 @@ def _plot_coefficient_vs_aoa(aoa_vals, coeff_vals, std_vals, style, turb_name, c
     ax.tick_params(labelsize=11)
     
     plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    try:
+        plt.savefig(output_path, dpi=300)
+    except Exception as e:
+        print(f"Warning: Could not save graph {output_path}: {e}")
     plt.close()
 
 
@@ -1290,7 +1297,10 @@ def _plot_drag_polar(C_D_vals, C_L_vals, C_D_std_vals, C_L_std_vals, aoa_vals, s
     ax.tick_params(labelsize=11)
     
     plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    try:
+        plt.savefig(output_path, dpi=300)
+    except Exception as e:
+         print(f"Warning: Could not save graph {output_path}: {e}")
     plt.close()
 
 
@@ -1308,7 +1318,6 @@ def _plot_combined(aoa_vals, C_L_vals, C_D_vals, C_L_std_vals, C_D_std_vals, sty
     ax1.grid(True, alpha=0.3, linestyle='--')
     ax1.legend(fontsize=11, loc='best', framealpha=0.9)
     ax1.tick_params(labelsize=11)
-    
     # Right: C_D vs AoA
     ax2.errorbar(aoa_vals, C_D_vals, yerr=C_D_std_vals,
                 marker=style['marker'], markersize=10, linewidth=2.5, capsize=5,
@@ -1321,5 +1330,8 @@ def _plot_combined(aoa_vals, C_L_vals, C_D_vals, C_L_std_vals, C_D_std_vals, sty
     ax2.tick_params(labelsize=11)
     
     plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    try:
+        plt.savefig(output_path, dpi=300)
+    except Exception as e:
+        print(f"Warning: Could not save graph {output_path}: {e}")
     plt.close()

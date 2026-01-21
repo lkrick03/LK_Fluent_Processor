@@ -30,10 +30,11 @@ from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS
 # DATA_SOURCES acts as a priority list. If duplicates exist, the one with the higher Version number wins.
 # If versions are identical, they are treated as duplicates (this script logic handles versioning, not path priority).
 DATA_SOURCES = [
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.NG"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.NG")
     # Path(r"C:\Path\To\Newer\Reruns"), 
 ]
-OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G")
+OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\Processed Data\2414_006_004")
 
 # Configuration Extraction Method
 CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
@@ -112,9 +113,13 @@ def main():
     processed_data_dir.mkdir(parents=True, exist_ok=True)
     
     for (config, aoa), data in all_data.items():
+        # Create AoA specific folder
+        aoa_dir = processed_data_dir / aoa
+        aoa_dir.mkdir(exist_ok=True)
+
         # Export lift
         export_force_data(
-            processed_data_dir / f"{config}_lift.txt", 
+            aoa_dir / f"{config}_lift.txt", 
             data['lift'], 
             {**data, 'config': config, 'aoa': aoa}, 
             "Lift"
@@ -122,7 +127,7 @@ def main():
         
         # Export drag
         export_force_data(
-            processed_data_dir / f"{config}_drag.txt", 
+            aoa_dir / f"{config}_drag.txt", 
             data['drag'], 
             {**data, 'config': config, 'aoa': aoa}, 
             "Drag"
@@ -184,6 +189,10 @@ def main():
         print(f"Max trim: {CONVERGENCE_MAX_TRIM * 100}% of data, Tests: {CONVERGENCE_NUM_TESTS}")
         
         for idx, ((config, aoa), data) in enumerate(all_data.items(), 1):
+            if len(data['lift']) < CONVERGENCE_NUM_TESTS + 10 or len(data['drag']) < CONVERGENCE_NUM_TESTS + 10:
+                print(f"\n  [{idx}/{len(all_data)}] Skipping: {config} - {aoa} (Insufficient data points: {len(data['lift'])})")
+                continue
+
             print(f"\n  [{idx}/{len(all_data)}] Analyzing: {config} - {aoa}")
             
             # Create convergence plots and analyze data
@@ -279,6 +288,10 @@ def main():
         for (config, aoa), conv_data in convergence_results.items():
             data = all_data[(config, aoa)]
             
+            # Create AoA specific folder
+            aoa_dir = postprocessed_dir / aoa
+            aoa_dir.mkdir(exist_ok=True)
+
             lift_min_cov_idx = np.argmin(conv_data['lift']['cov'])
             drag_min_cov_idx = np.argmin(conv_data['drag']['cov'])
             
@@ -291,7 +304,7 @@ def main():
             
             # Export optimized lift
             export_force_data(
-                postprocessed_dir / f"{config}_lift_optimized.txt",
+                aoa_dir / f"{config}_lift_optimized.txt",
                 optimized_lift,
                 {**data, 'config': config, 'aoa': aoa},
                 f"Optimized Lift (Trimmed {optimal_trim})"
@@ -299,7 +312,7 @@ def main():
             
             # Export optimized drag
             export_force_data(
-                postprocessed_dir / f"{config}_drag_optimized.txt",
+                aoa_dir / f"{config}_drag_optimized.txt",
                 optimized_drag,
                 {**data, 'config': config, 'aoa': aoa},
                 f"Optimized Drag (Trimmed {optimal_trim})"
