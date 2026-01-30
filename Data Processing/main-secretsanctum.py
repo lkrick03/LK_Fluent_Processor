@@ -19,7 +19,7 @@ import pickle
 from cfd_functions import (
     load_lift_drag_data, compute_statistics, extract_aoa_number,
     analyze_convergence, plot_convergence_analysis, create_data_summary_sheet, create_turbulence_comparison_sheet,
-    create_coefficients_sheet, create_optimized_statistics_sheet, apply_excel_formatting,
+    create_version_comparison_sheet, create_coefficients_sheet, create_optimized_statistics_sheet, apply_excel_formatting,
     create_coefficient_graphs
 )
 
@@ -399,6 +399,20 @@ def main():
     print("  Creating sheet: Coefficients")
     create_coefficients_sheet(wb, all_data, NUM_ITERATIONS, convergence_results, Q_TIMES_A)
     
+    version_sheet_created = False
+    if COMPARISON_CONFIGS:
+        print("  Creating sheet: Version_Comparison")
+        version_sheet_created = create_version_comparison_sheet(
+            wb,
+            all_data,
+            COMPARISON_CONFIGS,
+            NUM_ITERATIONS,
+            convergence_results,
+            Q_TIMES_A,
+        )
+        if not version_sheet_created:
+            print("  ⚠ Version comparison sheet skipped (no valid pairs)")
+
     # Sheet 4: Optimized Statistics (if convergence was run)
     if convergence_results:
         print("  Creating sheet: Optimized_Statistics")
@@ -407,7 +421,11 @@ def main():
     # Save workbook
     wb.save(excel_file)
     
-    sheet_count = 4 if convergence_results else 3
+    sheet_count = 3
+    if convergence_results:
+        sheet_count += 1
+    if version_sheet_created:
+        sheet_count += 1
     print(f"\n✓ Excel file created with {sheet_count} sheets")
     print(f"✓ Saved to: {excel_file}")
     
@@ -465,7 +483,7 @@ def main():
     graphs_dir = os.path.join(OUTPUT_DIR, "coefficient_graphs")
     print(f"\n✓ Graphs saved to: {graphs_dir}")
     print("✓ Organization: coefficient_graphs / turbulence_model / config /")
-    print("✓ Each config contains: C_L_vs_AoA.png, C_D_vs_AoA.png, Drag_Polar.png, C_L_C_D_Combined.png")
+    print("✓ Each config contains: C_L_vs_AoA.png, C_D_vs_AoA.png, C_L_C_D_Combined.png")
     
     # ==================== FINAL SUMMARY ====================
     print("\n" + "=" * 100)

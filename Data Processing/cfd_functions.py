@@ -35,19 +35,39 @@ def validate_aoa_folder(dirpath, filenames):
     """
     errors = []
     
+    # Helper to pick best file
+    def pick_best_file(file_list, file_type):
+        if not file_list:
+            return None, f"No {file_type} file found"
+        
+        if len(file_list) == 1:
+            return file_list[0], None
+            
+        # Multiple files: Sort by Last Modified (Newest First), then Size
+        def get_sort_key(fname):
+            full_path = dirpath / fname
+            try:
+                # Primary: Modification Time, Secondary: File Size
+                return (full_path.stat().st_mtime, full_path.stat().st_size)
+            except OSError:
+                return (0, 0)
+                
+        sorted_files = sorted(file_list, key=get_sort_key, reverse=True)
+        winner = sorted_files[0]
+        
+        # Log warning for multiple files
+        print(f"    [WARNING] [Auto-Select] Multiple {file_type} files in {dirpath.name}. Using newest: {winner}")
+        return winner, None
+
     # Find lift files
-    lift_files = [f for f in filenames if 'lift_force' in f and f.endswith('.txt')]
-    if len(lift_files) == 0:
-        errors.append("No lift_force_*.txt file found")
-    elif len(lift_files) > 1:
-        errors.append(f"Multiple lift files found: {lift_files} - SKIPPING")
+    lift_candidates = [f for f in filenames if 'lift_force' in f and f.endswith('.txt')]
+    lift_file, lift_err = pick_best_file(lift_candidates, "lift_force_*.txt")
+    if lift_err: errors.append(lift_err)
     
     # Find drag files
-    drag_files = [f for f in filenames if 'drag_force' in f and f.endswith('.txt')]
-    if len(drag_files) == 0:
-        errors.append("No drag_force_*.txt file found")
-    elif len(drag_files) > 1:
-        errors.append(f"Multiple drag files found: {drag_files} - SKIPPING")
+    drag_candidates = [f for f in filenames if 'drag_force' in f and f.endswith('.txt')]
+    drag_file, drag_err = pick_best_file(drag_candidates, "drag_force_*.txt")
+    if drag_err: errors.append(drag_err)
     
     # Find case file
     case_files = [f for f in filenames if f.endswith('.cas') or f.endswith('.cas.h5')]
@@ -58,8 +78,6 @@ def validate_aoa_folder(dirpath, filenames):
     
     # Compile results
     is_valid = len(errors) == 0
-    lift_file = lift_files[0] if len(lift_files) == 1 else None
-    drag_file = drag_files[0] if len(drag_files) == 1 else None
     case_file = case_files[0] if len(case_files) >= 1 else None
     error_msg = " | ".join(errors) if errors else ""
     
@@ -162,10 +180,10 @@ def load_and_correct_forces(lift_file, drag_file, aoa_degrees):
     
     return true_lift.tolist(), true_drag.tolist()
 
-def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value_mappings):
+def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value_mappings, comparison_mode='default'):
     """
     Load lift and drag force data from multiple source directories.
-    Implements 'Highest Version Wins' strategy for duplicates.
+    Implements 'Highest Version Wins' strategy for duplicates, unless comparing versions.
     """
     if not isinstance(root_dirs, list):
         root_dirs = [root_dirs]
@@ -213,13 +231,24 @@ def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value
             # 3. Create Unique Identity (Tuple)
             # Identity: (Geometry, Mesh, Turbulence, Grid, AoA)
             # Matches simulations that are physically identical, regardless of "Version"
-            sim_identity = (
-                metadata['geometry'], 
-                metadata['mesh'], 
-                metadata['turbulence_model'], 
-                metadata['grid'], 
-                metadata['aoa']
-            )
+            if comparison_mode == 'version':
+                # If comparing versions, the version itself is part of the unique identity
+                sim_identity = (
+                    metadata['geometry'], 
+                    metadata['mesh'], 
+                    metadata['turbulence_model'], 
+                    metadata['grid'], 
+                    metadata['aoa'],
+                    metadata.get('version_sort_key', 0)
+                )
+            else:
+                sim_identity = (
+                    metadata['geometry'], 
+                    metadata['mesh'], 
+                    metadata['turbulence_model'], 
+                    metadata['grid'], 
+                    metadata['aoa']
+                )
             
             candidates[sim_identity].append({
                 'version_key': metadata.get('version_sort_key', 0),
@@ -264,7 +293,12 @@ def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value
             
             # Store data using the Winner's specific config/AoA name
             # (Or should we normalize the key? Using winner's config string ensures traceability)
-            key = (winner['metadata']['config'], winner['metadata']['aoa'])
+            if comparison_mode == 'version':
+                 # Ensure unique key for version comparison
+                 config_key = f"{winner['metadata']['config']} (v{winner['metadata']['version_sort_key']})"
+                 key = (config_key, winner['metadata']['aoa'])
+            else:
+                 key = (winner['metadata']['config'], winner['metadata']['aoa'])
             
             data_by_config_aoa[key]['lift'].extend(lift_data)
             data_by_config_aoa[key]['drag'].extend(drag_data)
@@ -278,6 +312,150 @@ def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value
             validation_report['issues'].append((str(winner['dirpath']), f"Error loading winner data: {str(e)}"))
     
     return data_by_config_aoa, validation_report
+
+
+def apply_data_manipulations(all_data, manipulation_rules, value_mappings):
+    """Create synthetic data series (e.g., NG/G ratios) according to rules."""
+    derived_entries = {}
+    reports = []
+    if not manipulation_rules:
+        return derived_entries, reports
+
+    grid_mapping = value_mappings.get('grid', {}) if value_mappings else {}
+    code_to_label = grid_mapping
+    label_to_label = {v: v for v in grid_mapping.values()}
+
+    def normalize_grid_label(value):
+        if value is None:
+            return None
+        value = str(value).strip()
+        if not value:
+            return None
+        if value in code_to_label:
+            return code_to_label[value]
+        return label_to_label.get(value, value)
+
+    for rule in manipulation_rules:
+        if not rule or not rule.get('enabled', True):
+            continue
+
+        rule_name = rule.get('name', 'derived_series')
+        numerator_label = normalize_grid_label(rule.get('numerator_grid'))
+        denominator_label = normalize_grid_label(rule.get('denominator_grid'))
+        if not numerator_label or not denominator_label:
+            reports.append({'name': rule_name, 'created': 0, 'missing_pairs': 0, 'note': 'Invalid grid labels'})
+            continue
+
+        group_fields = rule.get('group_by', ['geometry', 'mesh', 'turbulence_model', 'version', 'aoa'])
+        operation = rule.get('operation', 'divide').lower()
+        suffix = rule.get('output_suffix') or rule_name
+        output_grid_label = rule.get('output_grid_label') or f"{rule.get('numerator_grid')} / {rule.get('denominator_grid')}"
+
+        grouped = defaultdict(dict)
+        for (config, aoa), data in all_data.items():
+            if data.get('is_derived'):
+                continue
+
+            group_key = []
+            missing_field = False
+            for field in group_fields:
+                if field == 'config':
+                    group_key.append(config)
+                elif field == 'aoa':
+                    group_key.append(aoa)
+                else:
+                    if field not in data:
+                        missing_field = True
+                        break
+                    group_key.append(data.get(field))
+            if missing_field:
+                continue
+
+            grouped[tuple(group_key)][data.get('grid')] = {
+                'config': config,
+                'aoa': aoa,
+                'data': data
+            }
+
+        created = 0
+        missing_pairs = 0
+        for by_grid in grouped.values():
+            if numerator_label not in by_grid or denominator_label not in by_grid:
+                missing_pairs += 1
+                continue
+
+            num_entry = by_grid[numerator_label]
+            den_entry = by_grid[denominator_label]
+
+            if num_entry['aoa'] != den_entry['aoa']:
+                missing_pairs += 1
+                continue
+
+            new_lift = _apply_series_operation(num_entry['data']['lift'], den_entry['data']['lift'], operation)
+            new_drag = _apply_series_operation(num_entry['data']['drag'], den_entry['data']['drag'], operation)
+
+            if not new_lift or not new_drag:
+                missing_pairs += 1
+                continue
+
+            base_parts = num_entry['config'].split('.')
+            base_without_grid = '.'.join(base_parts[:-1]) if len(base_parts) > 1 else num_entry['config']
+            derived_config_name = f"{base_without_grid}.{suffix}"
+            key = (derived_config_name, num_entry['aoa'])
+
+            derived_entries[key] = {
+                'lift': new_lift,
+                'drag': new_drag,
+                'turbulence_model': num_entry['data']['turbulence_model'],
+                'geometry': num_entry['data']['geometry'],
+                'mesh': num_entry['data']['mesh'],
+                'version': num_entry['data']['version'],
+                'grid': output_grid_label,
+                'source_configs': {
+                    'numerator': num_entry['config'],
+                    'denominator': den_entry['config'],
+                    'operation': operation
+                },
+                'manipulation_name': rule_name,
+                'is_derived': True
+            }
+            created += 1
+
+        reports.append({'name': rule_name, 'created': created, 'missing_pairs': missing_pairs})
+
+    return derived_entries, reports
+
+
+def _apply_series_operation(series_a, series_b, operation):
+    """Apply element-wise manipulation between two force arrays."""
+    arr_a = np.array(series_a, dtype=float)
+    arr_b = np.array(series_b, dtype=float)
+    length = min(len(arr_a), len(arr_b))
+    if length == 0:
+        return []
+
+    arr_a = arr_a[:length]
+    arr_b = arr_b[:length]
+
+    if operation == 'divide':
+        mask = arr_b != 0
+        if not np.any(mask):
+            return []
+        result = arr_a[mask] / arr_b[mask]
+    elif operation == 'percent_difference':
+        mask = arr_b != 0
+        if not np.any(mask):
+            return []
+        result = ((arr_a[mask] - arr_b[mask]) / arr_b[mask]) * 100.0
+    elif operation in ('subtract', 'difference'):
+        result = arr_a - arr_b
+    elif operation == 'add':
+        result = arr_a + arr_b
+    else:
+        result = arr_a - arr_b
+
+    result = result[np.isfinite(result)]
+    return result.tolist()
 
 
 def _read_force_file(filepath):
@@ -316,6 +494,68 @@ def extract_aoa_number(aoa_string):
         return int(aoa_string.split('_')[1])
     except:
         return 0
+
+
+def get_simulation_family_name(config_string):
+    """Collapse config identifiers so variants that only differ by version share one table."""
+    # This is legacy/default behavior (groups by Geom.Mesh.Turb.Grid, ignoring Version)
+    return get_grouping_key(config_string, mode='default')
+
+
+def get_grouping_key(config_string, mode='default'):
+    """
+    Generate a grouping key for the configuration based on the comparison mode.
+    
+    Modes:
+    - 'turbulence': Group by Geom.Mesh (ignores Turb, Grid, Version) -> comparables are Sidebar: Turb/Grid
+    - 'grid': Group by Geom.Mesh.Turb (ignores Grid, Version) -> comparables are Grid
+    - 'version': Group by Geom.Mesh.Turb.Grid (fully specific) -> comparables are Version
+    - 'default': Group by Geom.Mesh.Turb.Grid (ignores Version)
+    """
+    if not config_string:
+        return config_string
+        
+    parts = config_string.split('.')
+    if len(parts) < 3:
+        return config_string
+        
+    # Standard parts: [0]=Geom, [1]=Mesh, [2]=Turb, [3]=Ver, [4]=Grid
+    # But usually config string here is pre-processed or raw?
+    # Let's assume standard format: 4.3.1.3.NG
+    
+    geom = parts[0]
+    mesh = parts[1] if len(parts) > 1 else '?'
+    turb = parts[2] if len(parts) > 2 else '?'
+    
+    # Handle grid part (sometimes at end)
+    grid_part = None
+    if len(parts) >= 5:
+        grid_part = parts[4]
+    elif len(parts) == 4 and parts[3] in {'NG', 'G'}:
+        grid_part = parts[3]
+    
+    if mode == 'turbulence':
+        # Group by Geometry + Mesh only
+        # We want to see SST vs RNG vs RSM side-by-side
+        # So the "Family" name is just "4.3" (Geom.Mesh)
+        return f"{geom}.{mesh}"
+        
+    elif mode == 'grid':
+        # Group by Geometry + Mesh + Turbulence
+        # We want "4.3.1.NG" vs "4.3.1.G"
+        # Family is "4.3.1"
+        return f"{geom}.{mesh}.{turb}"
+        
+    elif mode == 'version':
+        # Group by everything except version (which is key)
+        # But actually for version comparison, we want the table to be "4.3.1.NG" 
+        # and columns to be V1, V2, V3.
+        # Family is "4.3.1.NG"
+        return f"{geom}.{mesh}.{turb}.{grid_part}" if grid_part else f"{geom}.{mesh}.{turb}"
+        
+    else: # default
+        # Default behavior: "4.3.1.NG" (Agostic of version)
+        return f"{geom}.{mesh}.{turb}.{grid_part}" if grid_part else f"{geom}.{mesh}.{turb}"
 
 
 # ==================== CONVERGENCE ANALYSIS FUNCTIONS ====================
@@ -586,11 +826,7 @@ def create_data_summary_sheet(wb, all_data, num_iterations, convergence_results)
     # Group data by base configuration
     base_config_data = defaultdict(list)
     for (config, aoa), data in all_data.items():
-        config_parts = config.split('.')
-        if len(config_parts) > 1:
-            base_config = '.'.join(config_parts[:-1])
-        else:
-            base_config = config
+        base_config = get_simulation_family_name(config)
         
         lift_values, drag_values = get_optimized_data(config, aoa, data)
         
@@ -699,12 +935,22 @@ def create_data_summary_sheet(wb, all_data, num_iterations, convergence_results)
         ws.column_dimensions[column_letter].width = adjusted_width
 
 
-def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence_results):
-    """Create Turbulence Comparison sheet with 4 tables."""
+def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence_results, comparison_mode='turbulence'):
+    """
+    Create 'Comparison' sheet depending on mode.
+    Mode 'turbulence': Columns are Turbulence Models.
+    Mode 'grid': Columns are Grid Types.
+    """
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
     
-    ws = wb.create_sheet(title='Turbulence Comparison')
+    sheet_title = 'Comparison'
+    if comparison_mode == 'turbulence':
+        sheet_title = 'Turbulence Comparison'
+    elif comparison_mode == 'grid':
+        sheet_title = 'Grid Comparison'
+        
+    ws = wb.create_sheet(title=sheet_title)
     
     # Define styles
     header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
@@ -741,12 +987,39 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         return lift_values, drag_values
     
     # Group by base config and turbulence model
-    turbulence_data = defaultdict(lambda: defaultdict(dict))
+    comparison_data = defaultdict(lambda: defaultdict(dict))
     
+    # Determine what is the "Column Header" (Sim Type) and what is the "Row Group" (Family)
     for (config, aoa), data in all_data.items():
-        config_parts = config.split('.')
-        base_config = '.'.join(config_parts[:-1]) if len(config_parts) > 1 else config
-        turb_model = data['turbulence_model']
+        base_config = get_grouping_key(config, mode=comparison_mode)
+        
+        if comparison_mode == 'turbulence':
+            # Label = Turbulence Model (e.g. SST, RNG)
+            # Family = Geom + Mesh
+            sim_type = data['turbulence_model']
+            # If we are in turbulence mode, the base_config is e.g. "4.3"
+            # We might want to append Grid info if it's mixed?
+            # For now, let's assume same grid.
+            if data['grid'] != 'N/A' and data['grid'] != 'No Grid':
+                 # Append grid to base config if it's significant?
+                 # Actually, get_grouping_key('turbulence') returns "4.3"
+                 # If we have "4.3...NG" and "4.3...G", they will mix.
+                 # Let's fix get_grouping_key to include grid if comparisons should be strictly turbulence.
+                 # Actually, usually you compare turb models on SAME grid.
+                 # So "4.3.NG" is the family.
+                 base_config = f"{base_config}.{data['grid'].replace('Is Grid', 'G')}" 
+                 # This is tricky because raw grid string might be long.
+                 # Let's use the helper's robust logic:
+                 base_parts = config.split('.')
+                 grid_part = base_parts[4] if len(base_parts)>=5 else (base_parts[3] if len(base_parts)==4 and base_parts[3] in ['NG','G'] else '')
+                 if grid_part:
+                     base_config = f"{base_config}.{grid_part}"
+
+        elif comparison_mode == 'grid':
+            # Label = Grid (e.g. With Grid, No Grid)
+            sim_type = "With Grid" if data['grid'] in ['G', 'With Grid'] else "No Grid"
+        else:
+            sim_type = data['turbulence_model']
         
         lift_values, drag_values = get_optimized_data(config, aoa, data)
         
@@ -758,7 +1031,7 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         drag_std = np.std(drag_values) if len(drag_values) > 0 else 0
         drag_cov = (drag_std / drag_mean * 100) if drag_mean != 0 else 0
         
-        turbulence_data[base_config][turb_model][aoa] = {
+        comparison_data[base_config][sim_type][aoa] = {
             'lift_mean': lift_mean,
             'lift_cov': lift_cov,
             'drag_mean': drag_mean,
@@ -768,16 +1041,16 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
     
     # Get sorted AoAs
     all_aoas = set()
-    for base_config in turbulence_data:
-        for turb_model in turbulence_data[base_config]:
-            all_aoas.update(turbulence_data[base_config][turb_model].keys())
+    for base_config in comparison_data:
+        for sim_type in comparison_data[base_config]:
+            all_aoas.update(comparison_data[base_config][sim_type].keys())
     sorted_aoas = sorted(all_aoas, key=extract_aoa_number)
     
     current_row = 1
     
     # Create 4 tables for each base configuration
-    for base_config in sorted(turbulence_data.keys()):
-        models_in_config = turbulence_data[base_config]
+    for base_config in sorted(comparison_data.keys()):
+        models_in_config = comparison_data[base_config]
         
         # Table 1: Lift Mean
         ws.cell(row=current_row, column=1, value=f"{base_config} - Lift Mean (N)")
@@ -789,7 +1062,8 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         current_row += 1
         
         # Headers
-        ws.cell(row=current_row, column=1, value='Turbulence Model').font = header_font
+        header_label = 'Turbulence Model' if comparison_mode == 'turbulence' else 'Grid Config'
+        ws.cell(row=current_row, column=1, value=header_label).font = header_font
         ws.cell(row=current_row, column=1).fill = header_fill
         ws.cell(row=current_row, column=1).alignment = header_alignment
         ws.cell(row=current_row, column=1).border = border_style
@@ -990,6 +1264,434 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         ws.column_dimensions[column_letter].width = adjusted_width
 
 
+def create_version_comparison_sheet(
+    wb,
+    all_data,
+    comparison_configs,
+    num_iterations,
+    convergence_results,
+    q_times_a,
+    comparison_mode='default'
+):
+    """Create a sheet that compares configured version pairs. Returns True if created."""
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    # Mode 'version': AUTO generate comparisons for all multiversion families
+    if comparison_mode == 'version':
+        return _create_auto_version_comparison_sheet(wb, all_data, num_iterations, convergence_results, q_times_a)
+
+    if not comparison_configs:
+        return False
+
+    config_lookup = defaultdict(dict)
+    for (config, aoa), data in all_data.items():
+        config_lookup[config][aoa] = data
+
+    def resolve_config_name(name):
+        target = str(name).strip()
+        if not target:
+            return None
+        if target in config_lookup:
+            return target
+        matches = [cfg for cfg in config_lookup if cfg.startswith(target)]
+        if len(matches) == 1:
+            return matches[0]
+        return None
+
+    def normalize_pairs(entries):
+        normalized = []
+        if isinstance(entries, dict):
+            raw_pairs = entries.get('pairs', [])
+            for pair in raw_pairs:
+                if isinstance(pair, (list, tuple)) and len(pair) == 2:
+                    normalized.append((pair[0], pair[1]))
+        else:
+            configs = [str(item).strip() for item in (entries or []) if str(item).strip()]
+            if len(configs) >= 2:
+                baseline = configs[0]
+                for target in configs[1:]:
+                    normalized.append((baseline, target))
+        return normalized
+
+    comparison_plan = {}
+    skipped_pairs = []
+
+    for base_key, entries in comparison_configs.items():
+        normalized_pairs = normalize_pairs(entries)
+        valid_pairs = []
+        for raw_a, raw_b in normalized_pairs:
+            cfg_a = resolve_config_name(raw_a)
+            cfg_b = resolve_config_name(raw_b)
+            if cfg_a and cfg_b:
+                valid_pairs.append((cfg_a, cfg_b))
+            else:
+                skipped_pairs.append((base_key, raw_a, raw_b))
+                missing = []
+                if not cfg_a:
+                    missing.append(str(raw_a))
+                if not cfg_b:
+                    missing.append(str(raw_b))
+                if missing:
+                    label = ' & '.join(missing)
+                    print(f"  ⚠ Version comparison skipped: {label} not found or ambiguous")
+        if valid_pairs:
+            comparison_plan[base_key] = valid_pairs
+
+    if not comparison_plan:
+        if skipped_pairs:
+            print("  ⚠ Version comparisons skipped: no matching configuration pairs found")
+        return False
+
+    # Define styles
+    header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+    subheader_font = Font(name='Calibri', size=12, bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    subheader_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+    header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    data_alignment = Alignment(horizontal='center', vertical='center')
+    border_style = Border(
+        left=Side(style='thin', color='000000'),
+        right=Side(style='thin', color='000000'),
+        top=Side(style='thin', color='000000'),
+        bottom=Side(style='thin', color='000000')
+    )
+    row_fill_light = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
+    row_fill_white = PatternFill(start_color='FFFFFF', end_color='FFFFFF', fill_type='solid')
+
+    metrics_cache = {}
+
+    def get_metrics(config, aoa):
+        key = (config, aoa)
+        if key in metrics_cache:
+            return metrics_cache[key]
+
+        data = config_lookup.get(config, {}).get(aoa)
+        if not data:
+            metrics_cache[key] = None
+            return None
+
+        if convergence_results and key in convergence_results:
+            conv = convergence_results[key]
+            lift_idx = np.argmin(conv['lift']['cov'])
+            drag_idx = np.argmin(conv['drag']['cov'])
+            optimal_trim = max(
+                conv['lift']['iterations_removed'][lift_idx],
+                conv['drag']['iterations_removed'][drag_idx],
+            )
+            lift_values = data['lift'][optimal_trim:]
+            drag_values = data['drag'][optimal_trim:]
+        else:
+            lift_values = data['lift'][-num_iterations:] if len(data['lift']) >= num_iterations else data['lift']
+            drag_values = data['drag'][-num_iterations:] if len(data['drag']) >= num_iterations else data['drag']
+
+        lift_arr = np.array(lift_values, dtype=float)
+        drag_arr = np.array(drag_values, dtype=float)
+
+        lift_mean = float(np.mean(lift_arr)) if lift_arr.size else None
+        drag_mean = float(np.mean(drag_arr)) if drag_arr.size else None
+        lift_std = float(np.std(lift_arr)) if lift_arr.size else None
+        drag_std = float(np.std(drag_arr)) if drag_arr.size else None
+
+        lift_cov = (lift_std / lift_mean * 100) if lift_mean not in (None, 0) and lift_std is not None else None
+        drag_cov = (drag_std / drag_mean * 100) if drag_mean not in (None, 0) and drag_std is not None else None
+
+        if q_times_a:
+            c_l = (lift_mean / q_times_a) if lift_mean is not None else None
+            c_d = (drag_mean / q_times_a) if drag_mean is not None else None
+        else:
+            c_l = None
+            c_d = None
+
+        metrics_cache[key] = {
+            'lift_mean': lift_mean,
+            'lift_cov': lift_cov,
+            'drag_mean': drag_mean,
+            'drag_cov': drag_cov,
+            'cl': c_l,
+            'cd': c_d,
+            'count': int(lift_arr.size) if lift_arr.size else 0,
+        }
+        return metrics_cache[key]
+
+    ws = wb.create_sheet(title='Version_Comparison')
+    current_row = 1
+
+    columns = [
+        'AoA',
+        'Lift A (N)',
+        'Lift B (N)',
+        'ΔLift (N)',
+        'ΔLift (%)',
+        'Drag A (N)',
+        'Drag B (N)',
+        'ΔDrag (N)',
+        'ΔDrag (%)',
+        'C_L A',
+        'C_L B',
+        'ΔC_L (%)',
+        'C_D A',
+        'C_D B',
+        'ΔC_D (%)',
+        'Points A',
+        'Points B',
+    ]
+
+    def fmt(value, precision):
+        return "" if value is None else f"{value:.{precision}f}"
+
+    def fmt_delta(a_val, b_val, precision, percent=False):
+        if a_val is None or b_val is None:
+            return ""
+        delta = b_val - a_val
+        if percent:
+            if a_val == 0:
+                return ""
+            delta = (delta / abs(a_val)) * 100
+        sign = "+" if delta >= 0 else ""
+        return f"{sign}{delta:.{precision}f}"
+
+    for base_key in sorted(comparison_plan.keys()):
+        ws.cell(row=current_row, column=1, value=f"{base_key} Version Comparisons")
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=len(columns))
+        cell = ws.cell(row=current_row, column=1)
+        cell.font = subheader_font
+        cell.fill = subheader_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border_style
+        current_row += 1
+
+        for cfg_a, cfg_b in comparison_plan[base_key]:
+            ws.cell(row=current_row, column=1, value=f"{cfg_a} vs {cfg_b}")
+            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=len(columns))
+            cell = ws.cell(row=current_row, column=1)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border_style
+            current_row += 1
+
+            for col_idx, col_name in enumerate(columns, 1):
+                cell = ws.cell(row=current_row, column=col_idx, value=col_name)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+                cell.border = border_style
+            current_row += 1
+
+            aoas = set(config_lookup[cfg_a].keys()) | set(config_lookup[cfg_b].keys())
+            sorted_aoas = sorted(aoas, key=extract_aoa_number)
+
+            for idx, aoa in enumerate(sorted_aoas):
+                metrics_a = get_metrics(cfg_a, aoa)
+                metrics_b = get_metrics(cfg_b, aoa)
+                fill = row_fill_light if idx % 2 == 0 else row_fill_white
+
+                lift_a = metrics_a['lift_mean'] if metrics_a else None
+                lift_b = metrics_b['lift_mean'] if metrics_b else None
+                drag_a = metrics_a['drag_mean'] if metrics_a else None
+                drag_b = metrics_b['drag_mean'] if metrics_b else None
+                cl_a = metrics_a['cl'] if metrics_a else None
+                cl_b = metrics_b['cl'] if metrics_b else None
+                cd_a = metrics_a['cd'] if metrics_a else None
+                cd_b = metrics_b['cd'] if metrics_b else None
+                count_a = metrics_a['count'] if metrics_a else 0
+                count_b = metrics_b['count'] if metrics_b else 0
+
+                row_values = [
+                    aoa,
+                    fmt(lift_a, 3),
+                    fmt(lift_b, 3),
+                    fmt_delta(lift_a, lift_b, 3),
+                    fmt_delta(lift_a, lift_b, 2, percent=True),
+                    fmt(drag_a, 3),
+                    fmt(drag_b, 3),
+                    fmt_delta(drag_a, drag_b, 3),
+                    fmt_delta(drag_a, drag_b, 2, percent=True),
+                    fmt(cl_a, 5),
+                    fmt(cl_b, 5),
+                    fmt_delta(cl_a, cl_b, 2, percent=True),
+                    fmt(cd_a, 5),
+                    fmt(cd_b, 5),
+                    fmt_delta(cd_a, cd_b, 2, percent=True),
+                    count_a if count_a else "",
+                    count_b if count_b else "",
+                ]
+
+                for col_idx, val in enumerate(row_values, 1):
+                    cell = ws.cell(row=current_row, column=col_idx, value=val)
+                    cell.alignment = data_alignment
+                    cell.border = border_style
+                    cell.fill = fill
+                current_row += 1
+
+            current_row += 1  # Blank row between pair tables
+
+        current_row += 1  # Additional spacing between base sections
+
+    # Autofit columns
+    for col_idx in range(1, len(columns) + 1):
+        max_length = 0
+        column_letter = get_column_letter(col_idx)
+        for row in ws.iter_rows(min_col=col_idx, max_col=col_idx):
+            for cell in row:
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except Exception:
+                    pass
+        adjusted_width = min(max_length + 2, 26)
+        ws.column_dimensions[column_letter].width = adjusted_width
+
+    return True
+
+
+def _create_auto_version_comparison_sheet(wb, all_data, num_iterations, convergence_results, q_times_a):
+    """
+    Automatically generate version comparison sheet by grouping all_data by Family.
+    Family = Geom.Mesh.Turb.Grid (ignoring version).
+    """
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    
+    # 1. Group data by Family
+    family_groups = defaultdict(list)
+    for key, data in all_data.items():
+        # key is (config_string, aoa)
+        config_str = key[0]
+        # For version mode, get_grouping_key gives us the family (ignoring version)
+        family = get_grouping_key(config_str, mode='version')
+        family_groups[family].append({
+            'config': config_str,
+            'aoa': key[1],
+            'version': data.get('version', 'Unknown'),
+            'version_key': data.get('version_sort_key', 0),
+            'data': data
+        })
+
+    # Filter for families that actually HAVE multiple versions
+    multi_version_families = []
+    for family, items in family_groups.items():
+        # Check if we have different versions for the same AoA?
+        # Or just different versions in general?
+        # usually we want to compare V1 vs V2 at same AoA.
+        
+        # Group immediate items by AoA
+        aoa_map = defaultdict(list)
+        for item in items:
+            aoa_map[item['aoa']].append(item)
+            
+        has_multiple = False
+        for aoa, subitems in aoa_map.items():
+            if len(subitems) > 1:
+                has_multiple = True
+                break
+        
+        if has_multiple:
+            multi_version_families.append(family)
+
+    if not multi_version_families:
+        print("  ⚠ No multi-version simulations found for auto-comparison.")
+        return False
+
+    ws = wb.create_sheet("Version Comparison")
+    
+    # Define styles
+    header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    table_title_font = Font(name='Calibri', size=12, bold=True, color='FFFFFF')
+    table_title_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+    header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    border_style = Border(
+        left=Side(style='thin', color='000000'),
+        right=Side(style='thin', color='000000'),
+        top=Side(style='thin', color='000000'),
+        bottom=Side(style='thin', color='000000')
+    )
+
+    def get_metrics_val(data):
+        # Helper to get mean values
+        if convergence_results:
+             # Try to find matching convergence result. 
+             # Key in convergence_results matches key in all_data
+             # We need to reconstruct the key used in all_data.
+             # Since we are iterating sub-items which HAVE 'config' which IS the key's config part...
+             key = (data['config_key'], data['aoa']) # We stored this in the loop below
+             if key in convergence_results:
+                 conv = convergence_results[key]
+                 lift_idx = np.argmin(conv['lift']['cov'])
+                 drag_idx = np.argmin(conv['drag']['cov'])
+                 optimal_trim = max(conv['lift']['iterations_removed'][lift_idx], conv['drag']['iterations_removed'][drag_idx])
+                 lift = data['data']['lift'][optimal_trim:]
+                 drag = data['data']['drag'][optimal_trim:]
+                 return np.mean(lift) if lift else 0, np.mean(drag) if drag else 0
+
+        lift = data['data']['lift'][-num_iterations:] if len(data['data']['lift']) >= num_iterations else data['data']['lift']
+        drag = data['data']['drag'][-num_iterations:] if len(data['data']['drag']) >= num_iterations else data['data']['drag']
+        return np.mean(lift) if lift else 0, np.mean(drag) if drag else 0
+
+    current_row = 1
+    
+    for family in multi_version_families:
+        items = family_groups[family]
+        # Group by AoA
+        aoa_map = defaultdict(list)
+        versions_found = set()
+        for item in items:
+            aoa_map[item['aoa']].append(item)
+            versions_found.add(item['version_key'])
+            # Store key for metrics lookup
+            # The 'config' field in item is the raw config string from the key?
+            # In the loop above: config_str = key[0].
+            # And in load_lift_drag_data, key[0] IS the unique string "Config (vX)"
+            item['config_key'] = item['config'] 
+            
+        sorted_versions = sorted(list(versions_found))
+        sorted_aoas = sorted(aoa_map.keys(), key=extract_aoa_number)
+
+        # Table Header
+        ws.cell(row=current_row, column=1, value=f"{family} - Version Comparison").font = table_title_font
+        ws.cell(row=current_row, column=1).fill = table_title_fill
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=1 + len(sorted_versions)*2) # *2 for Lift/Drag
+        current_row += 1
+        
+        # Column Headers
+        ws.cell(row=current_row, column=1, value="AoA").font = header_font
+        ws.cell(row=current_row, column=1).fill = header_fill
+        
+        for i, ver in enumerate(sorted_versions):
+            col_start = 2 + i*2
+            ws.cell(row=current_row, column=col_start, value=f"v{ver} Lift").font = header_font
+            ws.cell(row=current_row, column=col_start).fill = header_fill
+            ws.cell(row=current_row, column=col_start+1, value=f"v{ver} Drag").font = header_font
+            ws.cell(row=current_row, column=col_start+1).fill = header_fill
+        current_row += 1
+        
+        # Data Rows
+        for aoa in sorted_aoas:
+            ws.cell(row=current_row, column=1, value=aoa).alignment = Alignment(horizontal='center')
+            
+            subitems = aoa_map[aoa]
+            # Map version_key to data
+            ver_data_map = {item['version_key']: item for item in subitems}
+            
+            for i, ver in enumerate(sorted_versions):
+                col_start = 2 + i*2
+                if ver in ver_data_map:
+                    l_mean, d_mean = get_metrics_val(ver_data_map[ver])
+                    ws.cell(row=current_row, column=col_start, value=l_mean).number_format = '0.0000'
+                    ws.cell(row=current_row, column=col_start+1, value=d_mean).number_format = '0.0000'
+                else:
+                    ws.cell(row=current_row, column=col_start, value="-")
+                    ws.cell(row=current_row, column=col_start+1, value="-")
+            
+            current_row += 1
+        
+        current_row += 2 # Spacer
+        
+    return True
+
+
 def create_coefficients_sheet(wb, all_data, num_iterations, convergence_results, q_times_a):
     """Create Coefficients sheet with C_L and C_D."""
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -1023,7 +1725,11 @@ def create_coefficients_sheet(wb, all_data, num_iterations, convergence_results,
     
     # Data rows
     row = 2
-    for (config, aoa), data in sorted(all_data.items()):
+    
+    # Sort by Config Family first, then AoA
+    sorted_items = sorted(all_data.items(), key=lambda x: (get_simulation_family_name(x[0][0]), extract_aoa_number(x[0][1])))
+    
+    for (config, aoa), data in sorted_items:
         # Get optimized or fixed iteration data
         if convergence_results and (config, aoa) in convergence_results:
             conv = convergence_results[(config, aoa)]
@@ -1116,7 +1822,14 @@ def create_optimized_statistics_sheet(wb, all_data, convergence_results, num_ite
     
     # Data rows
     row = 2
-    for (config, aoa), data in sorted(all_data.items()):
+    
+    # Sort by Family -> AoA (numerical)
+    sorted_items = sorted(
+        all_data.items(),
+        key=lambda x: (get_simulation_family_name(x[0][0]), extract_aoa_number(x[0][1]))
+    )
+
+    for (config, aoa), data in sorted_items:
         if (config, aoa) not in convergence_results:
             continue
         
@@ -1179,77 +1892,159 @@ def apply_excel_formatting(excel_file):
 
 # ==================== PLOTTING FUNCTIONS ====================
 
-def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_map, value_mappings):
-    """Create all coefficient graphs organized by turbulence model and configuration."""
+def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_map, value_mappings, comparison_mode='default'):
+    """Create all coefficient graphs organized by comparison family."""
     
-    # Group configurations by turbulence model and base config
-    configs_by_turbulence = defaultdict(lambda: defaultdict(list))
+    # 1. Group data by "Family" (The Graph Title/Folder)
+    #    and "Series" (The Line on the Graph)
+    graphs_data = defaultdict(lambda: defaultdict(list))
     
     for (config, aoa), coeff in coefficient_data.items():
-        turb_model = coeff['turbulence_model']
-        parts = config.split('.')
-        base_config = '.'.join(parts[:4]) if len(parts) >= 4 else config
-        configs_by_turbulence[turb_model][base_config].append((config, aoa))
+        # Family: The common denominator (e.g., Geometry + Mesh)
+        family = get_grouping_key(config, mode=comparison_mode)
+        
+        # Series Label: What distinguishes this line? (e.g., Turbulence Model, or Grid Type)
+        if comparison_mode == 'turbulence':
+            series_label = coeff['turbulence_model']
+        elif comparison_mode == 'grid':
+            series_label = "With Grid" if "With Grid" in str(coeff) or ".G" in config else "No Grid"
+            # Better check from source data if possible, but coeff has limited fields.
+            # coeff dict currently has: turbulence_model, aoa_degrees, C_L, etc.
+            # It implies we need to pass full metadata or rely on config string?
+            # Let's rely on config string for safety if 'grid' not in coeff.
+            if '.NG' in config or 'No Grid' in config:
+                series_label = 'No Grid'
+            elif '.G' in config or 'With Grid' in config:
+                series_label = 'With Grid'
+            else:
+                series_label = 'Unknown'
+        elif comparison_mode == 'version':
+             # Extract version from somewhere? 
+             # coeff data doesn't have version...
+             # We might need to look it up in all_data if possible, but all_data key matches?
+             # Yes: (config, aoa) key matches.
+             org_data = all_data.get((config, aoa), {})
+             ver = org_data.get('version', 'V?')
+             series_label = f"{ver}"
+        else: # default
+             series_label = coeff['turbulence_model']
+
+        graphs_data[family][series_label].append(coeff)
+
+    # Define minimal styles or cycling colors
+    import itertools
+    # Color cycle: Blue, Orange, Green, Red, Purple, Brown, Pink, Gray, Olive, Cyan
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    markers = ['o', 's', '^', 'D', 'v', '>', '<', 'p', '*', 'h']
     
-    # Define styles
-    model_styles = {
-        'SST': {'color': '#1f77b4', 'marker': 'o', 'label': 'SST'},
-        'RNG': {'color': '#ff7f0e', 'marker': 's', 'label': 'RNG k-ε'},
-        'RSM': {'color': '#2ca02c', 'marker': '^', 'label': 'RSM'},
-        'k-epsilon': {'color': '#d62728', 'marker': 'D', 'label': 'k-ε'}
-    }
-    
-    # Create graphs
-    for turb_model in sorted(configs_by_turbulence.keys()):
-        for base_config in sorted(configs_by_turbulence[turb_model].keys()):
-            config_graphs_dir = os.path.join(output_dir, "coefficient_graphs", turb_model, base_config)
-            os.makedirs(config_graphs_dir, exist_ok=True)
-            
-            # Get coefficient data for this base config
-            config_keys = configs_by_turbulence[turb_model][base_config]
-            config_coeff_data = {key: coefficient_data[key] for key in config_keys}
-            
-            if not config_coeff_data:
-                continue
-            
-            # Organize data
-            aoa_list, C_L_list, C_D_list, C_L_std_list, C_D_std_list = [], [], [], [], []
-            for (config, aoa), coeff in config_coeff_data.items():
-                aoa_list.append(coeff['aoa_degrees'])
-                C_L_list.append(coeff['C_L'])
-                C_D_list.append(coeff['C_D'])
-                C_L_std_list.append(coeff['C_L_std'])
-                C_D_std_list.append(coeff['C_D_std'])
+    # Create graphs for each Family
+    for family in sorted(graphs_data.keys()):
+        series_dict = graphs_data[family]
+        
+        # Setup Folder
+        # Save directly in "coefficient_graphs/{family}"
+        graph_dir = output_dir / "coefficient_graphs" / family
+        graph_dir.mkdir(parents=True, exist_ok=True)
+        
+        # We need to collect ALL series to plot them on the same figure
+        plot_items = []
+        
+        # Assign styles to series sorted by name for consistency
+        sorted_series_names = sorted(series_dict.keys())
+        color_cycle = itertools.cycle(colors)
+        marker_cycle = itertools.cycle(markers)
+        
+        for series_name in sorted_series_names:
+            items = series_dict[series_name]
             
             # Sort by AoA
-            combined = list(zip(aoa_list, C_L_list, C_D_list, C_L_std_list, C_D_std_list))
-            combined.sort(key=lambda x: x[0])
+            items.sort(key=lambda x: x['aoa_degrees'])
             
-            aoa_vals = np.array([x[0] for x in combined])
-            C_L_vals = np.array([x[1] for x in combined])
-            C_D_vals = np.array([x[2] for x in combined])
-            C_L_std_vals = np.array([x[3] for x in combined])
-            C_D_std_vals = np.array([x[4] for x in combined])
+            aoa_vals = np.array([x['aoa_degrees'] for x in items])
+            C_L_vals = np.array([x['C_L'] for x in items])
+            C_D_vals = np.array([x['C_D'] for x in items])
+            # Std devs
+            C_L_std = np.array([x.get('C_L_std', 0) for x in items])
+            C_D_std = np.array([x.get('C_D_std', 0) for x in items])
             
-            style = model_styles.get(turb_model, {'color': '#1f77b4', 'marker': 'o', 'label': turb_model})
+            style = {
+                'label': series_name,
+                'color': next(color_cycle),
+                'marker': next(marker_cycle)
+            }
             
-            # Plot 1: C_L vs AoA
-            _plot_coefficient_vs_aoa(aoa_vals, C_L_vals, C_L_std_vals, style, turb_model, base_config,
-                                    'Lift Coefficient ($C_L$)', 'Lift Coefficient vs Angle of Attack',
-                                    os.path.join(config_graphs_dir, "C_L_vs_AoA.png"))
+            plot_items.append({
+                'aoa': aoa_vals,
+                'C_L': C_L_vals,
+                'C_D': C_D_vals,
+                'C_L_std': C_L_std,
+                'C_D_std': C_D_std,
+                'style': style
+            })
             
-            # Plot 2: C_D vs AoA
-            _plot_coefficient_vs_aoa(aoa_vals, C_D_vals, C_D_std_vals, style, turb_model, base_config,
-                                    'Drag Coefficient ($C_D$)', 'Drag Coefficient vs Angle of Attack',
-                                    os.path.join(config_graphs_dir, "C_D_vs_AoA.png"))
-            
-            # Plot 3: Drag Polar
-            _plot_drag_polar(C_D_vals, C_L_vals, C_D_std_vals, C_L_std_vals, aoa_vals, style, turb_model, base_config,
-                           os.path.join(config_graphs_dir, "Drag_Polar.png"))
-            
-            # Plot 4: Combined
-            _plot_combined(aoa_vals, C_L_vals, C_D_vals, C_L_std_vals, C_D_std_vals, style, turb_model, base_config,
-                         os.path.join(config_graphs_dir, "C_L_C_D_Combined.png"))
+        # Plot 1: C_L vs AoA (Multi-series)
+        _plot_multi_series(plot_items, 'C_L', f'{family} - Lift Coefficient', 'Lift Coefficient ($C_L$)',
+                          graph_dir / "C_L_vs_AoA.png")
+                          
+        # Plot 2: C_D vs AoA (Multi-series)
+        _plot_multi_series(plot_items, 'C_D', f'{family} - Drag Coefficient', 'Drag Coefficient ($C_D$)',
+                          graph_dir / "C_D_vs_AoA.png")
+                          
+        # Plot 3: Polar (C_L vs C_D) (Multi-series)
+        _plot_multi_polar(plot_items, f'{family} - Drag Polar', 
+                         graph_dir / "Drag_Polar.png")
+
+def _plot_multi_series(plot_items, val_key, title, ylabel, output_path):
+    """Refactored plotter for multiple series."""
+    plt.figure(figsize=(10, 7))
+    
+    for item in plot_items:
+        x = item['aoa']
+        y = item[val_key]
+        err = item.get(f'{val_key}_std')
+        s = item['style']
+        
+        plt.errorbar(x, y, yerr=err, label=s['label'], 
+                     color=s['color'], marker=s['marker'], 
+                     capsize=3, linestyle='-', linewidth=2, markersize=8, alpha=0.9)
+                     
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.xlabel('Angle of Attack (degrees)', fontsize=12)
+    plt.ylabel(ylabel, fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.legend(fontsize=10)
+    plt.tight_layout()
+    try:
+        plt.savefig(output_path, dpi=300)
+    except Exception as e:
+        print(f"Warning: Failed to save graph {output_path}: {e}")
+    plt.close()
+
+def _plot_multi_polar(plot_items, title, output_path):
+    """Refactored plotter for Drag Polar (C_L vs C_D)."""
+    plt.figure(figsize=(10, 7))
+    
+    for item in plot_items:
+        x = item['C_D'] # Drag is X usually in polar? Or Y? aerodynamics convention: Cd x-axis, Cl y-axis
+        y = item['C_L']
+        s = item['style']
+        
+        # err bars complicated for polar, skipping for clarity unless requested
+        plt.plot(x, y, label=s['label'], 
+                 color=s['color'], marker=s['marker'], 
+                 linestyle='-', linewidth=2, markersize=8, alpha=0.9)
+
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.xlabel('Drag Coefficient ($C_D$)', fontsize=12)
+    plt.ylabel('Lift Coefficient ($C_L$)', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.legend(fontsize=10)
+    plt.tight_layout()
+    try:
+        plt.savefig(output_path, dpi=300)
+    except Exception as e:
+        print(f"Warning: Failed to save graph {output_path}: {e}")
+    plt.close()
 
 
 def _plot_coefficient_vs_aoa(aoa_vals, coeff_vals, std_vals, style, turb_name, config, ylabel, title, output_path):
@@ -1273,36 +2068,6 @@ def _plot_coefficient_vs_aoa(aoa_vals, coeff_vals, std_vals, style, turb_name, c
     except Exception as e:
         print(f"Warning: Could not save graph {output_path}: {e}")
     plt.close()
-
-
-def _plot_drag_polar(C_D_vals, C_L_vals, C_D_std_vals, C_L_std_vals, aoa_vals, style, turb_name, config, output_path):
-    """Helper function to plot drag polar."""
-    fig, ax = plt.subplots(figsize=(12, 8))
-    
-    ax.errorbar(C_D_vals, C_L_vals, xerr=C_D_std_vals, yerr=C_L_std_vals,
-                marker=style['marker'], markersize=10, linewidth=2.5, capsize=5,
-                color=style['color'], label=turb_name, alpha=0.9)
-    
-    # Add AoA annotations
-    for i, aoa in enumerate(aoa_vals):
-        ax.annotate(f"{int(aoa)}°", (C_D_vals[i], C_L_vals[i]),
-                   textcoords="offset points", xytext=(8, 5),
-                   fontsize=10, fontweight='bold', color=style['color'])
-    
-    ax.set_xlabel('Drag Coefficient ($C_D$)', fontsize=14, fontweight='bold')
-    ax.set_ylabel('Lift Coefficient ($C_L$)', fontsize=14, fontweight='bold')
-    ax.set_title(f'Drag Polar ($C_L$ vs $C_D$)\n{config}', fontsize=14, fontweight='bold')
-    ax.grid(True, alpha=0.3, linestyle='--')
-    ax.legend(fontsize=12, loc='best', framealpha=0.9)
-    ax.tick_params(labelsize=11)
-    
-    plt.tight_layout()
-    try:
-        plt.savefig(output_path, dpi=300)
-    except Exception as e:
-         print(f"Warning: Could not save graph {output_path}: {e}")
-    plt.close()
-
 
 def _plot_combined(aoa_vals, C_L_vals, C_D_vals, C_L_std_vals, C_D_std_vals, style, turb_name, config, output_path):
     """Helper function to plot combined C_L and C_D."""

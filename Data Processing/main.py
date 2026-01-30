@@ -8,8 +8,8 @@ This script:
 3. Generates Excel summary files
 4. Creates coefficient graphs
 
-Author: [Your Name]
-Date: December 2025
+Author: Luke K. Smith
+Date: January 2026
 """
 
 from pathlib import Path
@@ -18,10 +18,10 @@ import pandas as pd
 from cfd_functions import (
     load_lift_drag_data, compute_statistics, extract_aoa_number,
     analyze_convergence, plot_convergence_analysis, create_data_summary_sheet, create_turbulence_comparison_sheet,
-    create_coefficients_sheet, create_optimized_statistics_sheet, apply_excel_formatting,
-    create_coefficient_graphs
+    create_version_comparison_sheet, create_coefficients_sheet, create_optimized_statistics_sheet, apply_excel_formatting,
+    create_coefficient_graphs, apply_data_manipulations, get_simulation_family_name
 )
-from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS
+from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS, DATA_MANIPULATIONS
 
 
 # ==================== USER CONFIGURATION ====================
@@ -31,13 +31,23 @@ from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS
 # If versions are identical, they are treated as duplicates (this script logic handles versioning, not path priority).
 DATA_SOURCES = [
     Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.NG"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.NG")
-    # Path(r"C:\Path\To\Newer\Reruns"), 
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.NG"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.G"),
+    #Path(r"C:\Path\To\Newer\Reruns"), 
 ]
-OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\Processed Data\2414_006_004")
+OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\Processed Data\Singular_Data\4.3.1.4.NG")
 
 # Configuration Extraction Method
 CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
+
+# Comparison Mode
+# Options: 'default', 'turbulence', 'grid', 'version'
+# - default: Standard behavior (highest version wins).
+# - turbulence: Groups by Geometry.Mesh to compare turbulence models side-by-side.
+# - grid: Groups by Geometry.Mesh.Turbulence to compare Grid vs No Grid side-by-side.
+# - version: Groups by Geometry.Mesh.Turbulence.Grid to compare versions (V1, V2...) side-by-side.
+COMPARISON_MODE = 'default'
 
 # Processing Parameters
 NUM_ITERATIONS = 150  # Number of last iterations to use for statistics
@@ -81,7 +91,7 @@ def main():
     for src in DATA_SOURCES:
         print(f"  - {src}")
 
-    all_data, validation_report = load_lift_drag_data(DATA_SOURCES, CONFIG_EXTRACTION_METHOD, POSITION_MAP, VALUE_MAPPINGS)
+    all_data, validation_report = load_lift_drag_data(DATA_SOURCES, CONFIG_EXTRACTION_METHOD, POSITION_MAP, VALUE_MAPPINGS, comparison_mode=COMPARISON_MODE)
     
     # Print validation report
     print("\n" + "-" * 100)
@@ -101,6 +111,23 @@ def main():
             display_name = f".../{path_obj.parent.name}/{path_obj.name}"
             print(f"  ⚠️  {display_name}: {issue}")
     print("-" * 100)
+
+    # Apply optional data manipulations (e.g., NG/G ratios)
+    derived_entries, manipulation_reports = apply_data_manipulations(all_data, DATA_MANIPULATIONS, VALUE_MAPPINGS)
+    if derived_entries:
+        all_data.update(derived_entries)
+
+    if manipulation_reports:
+        print("\n" + "-" * 100)
+        print("DATA MANIPULATIONS")
+        print("-" * 100)
+        for report in manipulation_reports:
+            note = report.get('note')
+            if note:
+                print(f"  ⚠️  {report['name']}: {note}")
+            else:
+                print(f"  • {report['name']}: created {report['created']} derived series (missing pairs: {report['missing_pairs']})")
+        print("-" * 100)
     
     print(f"\n✓ Loaded data for {len(all_data)} configuration-AoA combinations:")
     for (config, aoa), data in sorted(list(all_data.items())[:5]):  # Show first 5
@@ -151,7 +178,7 @@ def main():
         f.write(f"Extraction Method: {CONFIG_EXTRACTION_METHOD}\n\n")
         f.write("=" * 100 + "\n\n")
         
-        sorted_data = sorted(all_data.items(), key=lambda x: (x[0][0], extract_aoa_number(x[0][1])))
+        sorted_data = sorted(all_data.items(), key=lambda x: (get_simulation_family_name(x[0][0]), extract_aoa_number(x[0][1])))
         
         for (config, aoa), data in sorted_data:
             lift_last_n = data['lift'][-NUM_ITERATIONS:] if len(data['lift']) >= NUM_ITERATIONS else data['lift']
@@ -242,7 +269,9 @@ def main():
             f.write("CONVERGENCE ANALYSIS RESULTS\n")
             f.write("=" * 120 + "\n\n")
             
-            for (config, aoa), results in convergence_results.items():
+            sorted_convergence = sorted(convergence_results.items(), key=lambda x: (get_simulation_family_name(x[0][0]), extract_aoa_number(x[0][1])))
+            
+            for (config, aoa), results in sorted_convergence:
                 lift_results = results['lift']
                 drag_results = results['drag']
                 
@@ -285,7 +314,7 @@ def main():
         postprocessed_dir = convergence_dir / "optimized_data"
         postprocessed_dir.mkdir(parents=True, exist_ok=True)
         
-        for (config, aoa), conv_data in convergence_results.items():
+        for (config, aoa), conv_data in sorted_convergence:
             data = all_data[(config, aoa)]
             
             # Create AoA specific folder
@@ -341,13 +370,32 @@ def main():
     create_data_summary_sheet(wb, all_data, NUM_ITERATIONS, convergence_results)
     
     # Sheet 2: Turbulence Comparison
-    print("  Creating sheet: Turbulence_Comparison")
-    create_turbulence_comparison_sheet(wb, all_data, NUM_ITERATIONS, convergence_results)
+    # Sheet 2: Turbulence / Grid Comparison
+    if COMPARISON_MODE != 'default':
+        print(f"  Creating sheet: {COMPARISON_MODE.capitalize()} Comparison")
+        create_turbulence_comparison_sheet(wb, all_data, NUM_ITERATIONS, convergence_results, comparison_mode=COMPARISON_MODE)
+    else:
+        print("  Skipping comparison sheet (Mode: default)")
     
     # Sheet 3: Coefficients
     print("  Creating sheet: Coefficients")
     create_coefficients_sheet(wb, all_data, NUM_ITERATIONS, convergence_results, Q_TIMES_A)
     
+    version_sheet_created = False
+    if COMPARISON_CONFIGS or COMPARISON_MODE == 'version':
+        print("  Creating sheet: Version_Comparison")
+        version_sheet_created = create_version_comparison_sheet(
+            wb,
+            all_data,
+            COMPARISON_CONFIGS,
+            NUM_ITERATIONS,
+            convergence_results,
+            Q_TIMES_A,
+            comparison_mode=COMPARISON_MODE
+        )
+        if not version_sheet_created:
+            print("  ⚠ Version comparison sheet skipped (no valid pairs or multi-version families)")
+
     # Sheet 4: Optimized Statistics (if convergence was run)
     if convergence_results:
         print("  Creating sheet: Optimized_Statistics")
@@ -356,7 +404,11 @@ def main():
     # Save workbook
     wb.save(excel_file)
     
-    sheet_count = 4 if convergence_results else 3
+    sheet_count = 3
+    if convergence_results:
+        sheet_count += 1
+    if version_sheet_created:
+        sheet_count += 1
     print(f"\n✓ Excel file created with {sheet_count} sheets")
     print(f"✓ Saved to: {excel_file}")
     
@@ -409,12 +461,12 @@ def main():
     
     # Create graphs
     print("\nGenerating graphs...")
-    create_coefficient_graphs(all_data, coefficient_data, OUTPUT_DIR, POSITION_MAP, VALUE_MAPPINGS)
+    create_coefficient_graphs(all_data, coefficient_data, OUTPUT_DIR, POSITION_MAP, VALUE_MAPPINGS, comparison_mode=COMPARISON_MODE)
     
     graphs_dir = OUTPUT_DIR / "coefficient_graphs"
     print(f"\n✓ Graphs saved to: {graphs_dir}")
     print("✓ Organization: coefficient_graphs / turbulence_model / config /")
-    print("✓ Each config contains: C_L_vs_AoA.png, C_D_vs_AoA.png, Drag_Polar.png, C_L_C_D_Combined.png")
+    print("✓ Each config contains: C_L_vs_AoA.png, C_D_vs_AoA.png, C_L_C_D_Combined.png")
     
     # ==================== FINAL SUMMARY ====================
     print("\n" + "=" * 100)

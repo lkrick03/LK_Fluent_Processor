@@ -42,6 +42,30 @@ VALUE_MAPPINGS = {
 }
 
 # Comparison Configurations
+# Provide the configurations you want to compare for each base setup.
+# When a list is supplied, the first entry is treated as the baseline and
+# every subsequent entry is compared directly against it.
 COMPARISON_CONFIGS = {
-    '4.3.NG': ['4.3.1.NG', '4.3.2.NG', '4.3.3.NG'],
+    '4.3.NG': [
+        '4.3.1.4.NG',  # Baseline (e.g., original run)
+        '4.3.2.4.NG',  # Compared against the baseline
+    ],
 }
+
+# Derived Data Manipulations
+# Each entry defines how to create a synthetic data series using existing inputs.
+# Example below (disabled) would divide No-Grid (NG) results by With-Grid (G) results
+# for every AoA within the same geometry/mesh/turbulence/version grouping.
+DATA_MANIPULATIONS = [
+    {
+        'name': 'NG_div_G',
+        'enabled': False,          # Set True to activate
+        'group_by': ['geometry', 'mesh', 'turbulence_model', 'version', 'aoa'],
+        'numerator_grid': 'NG',    # Accepts either shorthand (NG/G) or descriptive ('No Grid')
+        'denominator_grid': 'G',
+        'operation': 'divide',     # Supported: divide, subtract, percent_difference
+        'output_suffix': 'NG_div_G',
+        'output_grid_label': 'NG/G Ratio',
+        'description': 'Creates NG/G force ratios for each matching simulation family.'
+    }
+]

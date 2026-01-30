@@ -1213,11 +1213,7 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
                                     'Drag Coefficient ($C_D$)', 'Drag Coefficient vs Angle of Attack',
                                     os.path.join(config_graphs_dir, "C_D_vs_AoA.png"))
             
-            # Plot 3: Drag Polar
-            _plot_drag_polar(C_D_vals, C_L_vals, C_D_std_vals, C_L_std_vals, aoa_vals, style, turb_model, base_config,
-                           os.path.join(config_graphs_dir, "Drag_Polar.png"))
-            
-            # Plot 4: Combined
+            # Plot 3: Combined
             _plot_combined(aoa_vals, C_L_vals, C_D_vals, C_L_std_vals, C_D_std_vals, style, turb_model, base_config,
                          os.path.join(config_graphs_dir, "C_L_C_D_Combined.png"))
 
@@ -1240,33 +1236,6 @@ def _plot_coefficient_vs_aoa(aoa_vals, coeff_vals, std_vals, style, turb_name, c
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
-
-
-def _plot_drag_polar(C_D_vals, C_L_vals, C_D_std_vals, C_L_std_vals, aoa_vals, style, turb_name, config, output_path):
-    """Helper function to plot drag polar."""
-    fig, ax = plt.subplots(figsize=(12, 8))
-    
-    ax.errorbar(C_D_vals, C_L_vals, xerr=C_D_std_vals, yerr=C_L_std_vals,
-                marker=style['marker'], markersize=10, linewidth=2.5, capsize=5,
-                color=style['color'], label=turb_name, alpha=0.9)
-    
-    # Add AoA annotations
-    for i, aoa in enumerate(aoa_vals):
-        ax.annotate(f"{int(aoa)}°", (C_D_vals[i], C_L_vals[i]),
-                   textcoords="offset points", xytext=(8, 5),
-                   fontsize=10, fontweight='bold', color=style['color'])
-    
-    ax.set_xlabel('Drag Coefficient ($C_D$)', fontsize=14, fontweight='bold')
-    ax.set_ylabel('Lift Coefficient ($C_L$)', fontsize=14, fontweight='bold')
-    ax.set_title(f'Drag Polar ($C_L$ vs $C_D$)\n{config}', fontsize=14, fontweight='bold')
-    ax.grid(True, alpha=0.3, linestyle='--')
-    ax.legend(fontsize=12, loc='best', framealpha=0.9)
-    ax.tick_params(labelsize=11)
-    
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    plt.close()
-
 
 def _plot_combined(aoa_vals, C_L_vals, C_D_vals, C_L_std_vals, C_D_std_vals, style, turb_name, config, output_path):
     """Helper function to plot combined C_L and C_D."""
