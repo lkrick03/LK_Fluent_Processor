@@ -86,48 +86,68 @@ def validate_aoa_folder(dirpath, filenames):
 
 # ==================== DATA LOADING FUNCTIONS ====================
 
-def find_aoa_folders(root_dir):
-    """Generator that yields paths to valid AoA folders."""
+def find_simulation_folders(root_dir):
+    """Generator that yields paths to folders containing simulation data (case + force files)."""
     for dirpath, _, filenames in os.walk(root_dir):
-        if 'AoA_' in dirpath:
+        # Look for case files to identify simulation folders
+        has_case_file = any(f.endswith('.cas') or f.endswith('.cas.h5') for f in filenames)
+        if has_case_file:
             yield Path(dirpath), filenames
 
+# Legacy alias for backward compatibility
+def find_aoa_folders(root_dir):
+    """Deprecated: Use find_simulation_folders instead."""
+    return find_simulation_folders(root_dir)
+
 def parse_configuration(dirpath, case_file, config_extraction_method, position_map, value_mappings):
-    """Extracts configuration metadata from path and case file."""
-    # Extract config string
+    """
+    Extracts configuration metadata from case filename.
+    
+    Supports two naming conventions:
+    1. _AoA_ format: 4.3.1.2_AoA_10.cas.h5 → config=4.3.1.2, AoA=10
+    2. Dot format: 4.3.1.3.NG.5.cas.h5 → config=4.3.1.3.NG, AoA=5
+    """
+    import re
+    
+    if not case_file:
+        return None, "No case file provided"
+    
+    # Strip file extension
+    base_name = case_file.replace('.cas.h5', '').replace('.cas', '')
+    
+    # Try to extract config and AoA
     config = None
-    if config_extraction_method == 'case_file' and case_file:
-        config = case_file.replace('.cas.h5', '').replace('.cas', '')
-        if not (config and config[0].isdigit() and '.' in config):
-            config = None
+    aoa_number = None
+    
+    # Format 1: Contains _AoA_ (e.g., 4.3.1.2_AoA_10)
+    if '_AoA_' in base_name:
+        parts = base_name.split('_AoA_')
+        if len(parts) == 2:
+            config = parts[0]
+            aoa_number = parts[1]
     else:
-        # Legacy: parse from folder structure
-        parts = dirpath.parts
-        for part in parts:
-            if part and part[0].isdigit() and part.count('.') >= 2:
-                config = part
+        # Format 2: AoA is last numeric segment after dots (e.g., 4.3.1.3.NG.5)
+        # Split by dots and find the last purely numeric part
+        parts = base_name.split('.')
+        
+        # Find last numeric part (that's the AoA)
+        for i in range(len(parts) - 1, -1, -1):
+            if parts[i].lstrip('-').isdigit():
+                aoa_number = parts[i]
+                config = '.'.join(parts[:i])
                 break
+        
+        # If no numeric AoA found at end, this might be a different format
+        if aoa_number is None:
+            return None, f"Could not extract AoA from filename: {base_name}"
     
-    # Extract AoA
-    aoa = None
-    for part in dirpath.parts:
-        if part.startswith('AoA_'):
-            aoa = part
-            break
-            
-    if not config or not aoa:
-        return None, f"Could not extract config/AoA: config={config}, aoa={aoa}"
-
-    # Extract AoA number
-    aoa_number = aoa.split('_')[1]
+    if not config or aoa_number is None:
+        return None, f"Could not parse config/AoA from filename: {base_name}"
     
-    # Handle old format embedded in filename
-    if '_AoA_' in config:
-        config = config.replace(f'_AoA_{aoa_number}', f'.{aoa_number}')
-    elif config.count('.') == 0:
-        config = f"{config}.{aoa_number}"
-
-    # Parse configuration parts
+    # Create standardized AoA string
+    aoa = f"AoA_{aoa_number}"
+    
+    # Parse configuration parts (config string without AoA)
     config_parts = config.split('.')
     
     def safe_get(index, cast_type=int):
@@ -138,19 +158,22 @@ def parse_configuration(dirpath, case_file, config_extraction_method, position_m
                 return config_parts[index]
         return None
 
-    # Extract fields
+    # Extract fields using position map
     geometry_num = safe_get(position_map['geometry'])
     mesh_num = safe_get(position_map['mesh'])
     turbulence_num = safe_get(position_map['turbulence'])
     version_num = safe_get(position_map['version'])
-    grid_code = safe_get(position_map['grid'], str)
+    
+    # Handle optional grid field (may be None in 4-part schema)
+    grid_index = position_map.get('grid')
+    grid_code = safe_get(grid_index, str) if grid_index is not None else None
 
     # Map to descriptive names
     metadata = {
         'config': config,
         'aoa': aoa,
         'aoa_number': float(aoa_number),
-        'version_sort_key': version_num if isinstance(version_num, (int, float)) else 0, # Added for version sorting
+        'version_sort_key': version_num if isinstance(version_num, (int, float)) else 0,
         'geometry': value_mappings.get('geometry', {}).get(geometry_num, f"Geometry_{geometry_num}") if geometry_num else "N/A",
         'mesh': value_mappings.get('mesh', {}).get(mesh_num, f"Mesh_{mesh_num}") if mesh_num else "N/A",
         'turbulence_model': value_mappings.get('turbulence', {}).get(turbulence_num, f"Turbulence_{turbulence_num}") if turbulence_num else "Unknown",

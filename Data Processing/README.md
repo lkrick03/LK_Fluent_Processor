@@ -46,6 +46,17 @@ All user-configurable settings are at the top of `main.py`:
 *   `COMPARISON_MODE`: Controls grouping logic.
 *   `NUM_ITERATIONS`: Number of iterations to use for averaging (default 150).
 
+### Naming Schemas
+The system supports different config naming conventions. Set `ACTIVE_SCHEMA` in `config.py`:
+
+| Schema | Example Filename | Config | AoA |
+| :--- | :--- | :--- | :--- |
+| `4-part` | `4.3.1.2_AoA_10.cas.h5` | `4.3.1.2` | `10` |
+| `5-part` | `4.3.1.3.NG.5.cas.h5` | `4.3.1.3.NG` | `5` |
+
+- **4-part**: No grid suffix (geometry.mesh.turbulence.version)
+- **5-part**: With grid suffix (geometry.mesh.turbulence.version.grid)
+
 ## Dependencies
 *   `numpy`
 *   `pandas`

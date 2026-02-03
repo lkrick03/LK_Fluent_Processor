@@ -21,7 +21,7 @@ from cfd_functions import (
     create_version_comparison_sheet, create_coefficients_sheet, create_optimized_statistics_sheet, apply_excel_formatting,
     create_coefficient_graphs, apply_data_manipulations, get_simulation_family_name
 )
-from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS, DATA_MANIPULATIONS
+from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS, DATA_MANIPULATIONS, NAMING_SCHEMAS, ACTIVE_SCHEMA
 
 
 # ==================== USER CONFIGURATION ====================
@@ -30,15 +30,20 @@ from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS, DATA_MANIPU
 # DATA_SOURCES acts as a priority list. If duplicates exist, the one with the higher Version number wins.
 # If versions are identical, they are treated as duplicates (this script logic handles versioning, not path priority).
 DATA_SOURCES = [
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.NG"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.NG"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.5.NG"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.NG"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.NG"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.5.NG"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.G"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.5.G"),
+
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.2"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.3.1"),
+
     #Path(r"C:\Path\To\Newer\Reruns"), 
 ]
-OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\Processed Data\Singular_Data\4.3.1.5.NG")
+OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\Processed Data\Comparisons\2414_006_004\Turbulence_Comparison\4.3.1.2_4.3.2.1_4.3.3.1")
 
 # Configuration Extraction Method
 CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
@@ -49,7 +54,7 @@ CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
 # - turbulence: Groups by Geometry.Mesh to compare turbulence models side-by-side.
 # - grid: Groups by Geometry.Mesh.Turbulence to compare Grid vs No Grid side-by-side.
 # - version: Groups by Geometry.Mesh.Turbulence.Grid to compare versions (V1, V2...) side-by-side.
-COMPARISON_MODE = 'default'
+COMPARISON_MODE = 'turbulence'
 
 # Processing Parameters
 NUM_ITERATIONS = 150  # Number of last iterations to use for statistics

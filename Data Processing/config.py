@@ -2,15 +2,34 @@
 Configuration settings for CFD Data Processing.
 """
 
-# Position Mapping (0-indexed for config parts split by '.')
-# For config '4.3.1.3.NG': [0]=4 (geom), [1]=3 (mesh), [2]=1 (turb), [3]=3 (ver), [4]=NG (grid)
-POSITION_MAP = {
-    'geometry': 0,       # Index 0: Geometry number
-    'mesh': 1,           # Index 1: Mesh number
-    'turbulence': 2,     # Index 2: Turbulence model number
-    'version': 3,        # Index 3: Version number
-    'grid': 4,           # Index 4: Grid type
+# Naming Schemas: Define how to parse different config string formats
+# Each schema maps field names to their position (0-indexed after splitting by '.')
+# Set 'grid' to None if your naming convention doesn't include a grid suffix
+
+NAMING_SCHEMAS = {
+    # For configs like: 4.3.1.3.NG (5 parts with grid suffix)
+    '5-part': {
+        'geometry': 0,       # Index 0: Geometry number
+        'mesh': 1,           # Index 1: Mesh number
+        'turbulence': 2,     # Index 2: Turbulence model number
+        'version': 3,        # Index 3: Version number
+        'grid': 4,           # Index 4: Grid type (NG/G)
+    },
+    # For configs like: 4.3.1.2 (4 parts, no grid suffix)
+    '4-part': {
+        'geometry': 0,       # Index 0: Geometry number
+        'mesh': 1,           # Index 1: Mesh number
+        'turbulence': 2,     # Index 2: Turbulence model number
+        'version': 3,        # Index 3: Version number
+        'grid': None,        # No grid field in this format
+    },
 }
+
+# Select which schema to use based on your data format
+ACTIVE_SCHEMA = '4-part'  # Change to '5-part' for configs like 4.3.1.3.NG
+
+# Legacy alias for backward compatibility
+POSITION_MAP = NAMING_SCHEMAS[ACTIVE_SCHEMA]
 
 # Value Mappings
 VALUE_MAPPINGS = {
