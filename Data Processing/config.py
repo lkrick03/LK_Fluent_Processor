@@ -26,7 +26,7 @@ NAMING_SCHEMAS = {
 }
 
 # Select which schema to use based on your data format
-ACTIVE_SCHEMA = '4-part'  # Change to '5-part' for configs like 4.3.1.3.NG
+ACTIVE_SCHEMA = '5-part'  # Change to '5-part' for configs like 4.3.1.3.NG
 
 # Legacy alias for backward compatibility
 POSITION_MAP = NAMING_SCHEMAS[ACTIVE_SCHEMA]
@@ -46,7 +46,7 @@ VALUE_MAPPINGS = {
     },
     'turbulence': {
         1: 'SST',
-        2: 'RNG',
+        2: 'K-epsilon Standard',
         3: 'RSM',
     },
     'version': {

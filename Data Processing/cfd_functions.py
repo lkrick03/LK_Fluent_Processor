@@ -15,6 +15,66 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 
 
+# ==================== PLOTTING CONSTANTS & STYLING ====================
+
+def set_plot_style():
+    """Configure professional academic plot styles for Matplotlib."""
+    plt.rcParams.update({
+        # High-res output
+        'figure.dpi': 300,
+        'savefig.dpi': 300,
+        
+        # Typography
+        'font.family': 'sans-serif',
+        'font.sans-serif': ['Arial', 'Helvetica', 'DejaVu Sans'],
+        'font.size': 11,
+        'axes.titlesize': 14,
+        'axes.titleweight': 'bold',
+        'axes.labelsize': 12,
+        'legend.fontsize': 10,
+        'xtick.labelsize': 10,
+        'ytick.labelsize': 10,
+        
+        # Grid & Ticks
+        'axes.grid': True,
+        'axes.grid.which': 'both',
+        'grid.alpha': 0.3,
+        'grid.linestyle': '--',
+        'grid.linewidth': 0.5,
+        'axes.axisbelow': True,
+        'xtick.direction': 'in',
+        'ytick.direction': 'in',
+        'xtick.top': True,
+        'ytick.right': True,
+        
+        # Spine aesthetics
+        'axes.linewidth': 1.0,
+        'axes.spines.top': True,
+        'axes.spines.right': True,
+        
+        # Markers & Lines
+        'lines.linewidth': 1.8,
+        'lines.markersize': 7,
+        'errorbar.capsize': 3,
+    })
+
+# Academic color palette
+ACADEMIC_COLORS = [
+    '#004c6d', # Dark blue
+    '#c33c54', # Muted red
+    '#254441', # Deep teal
+    '#ef7a1a', # Vibrant orange
+    '#432371', # Deep purple
+    '#7b9e89', # Sage green
+    '#d4a373', # Sandy brown
+    '#588157', # Forest green
+    '#ffb703', # Gold
+    '#fb8500', # Bright orange
+]
+
+ACADEMIC_MARKERS = ['o', 's', '^', 'D', 'v', 'p', 'P', '*', 'h', 'X']
+
+
 # ==================== DATA VALIDATION FUNCTIONS ====================
 
 def validate_aoa_folder(dirpath, filenames):
@@ -167,6 +227,14 @@ def parse_configuration(dirpath, case_file, config_extraction_method, position_m
     # Handle optional grid field (may be None in 4-part schema)
     grid_index = position_map.get('grid')
     grid_code = safe_get(grid_index, str) if grid_index is not None else None
+    
+    # Fallback: Check directory name if Grid is not explicit in filename
+    if not grid_code or grid_code == 'None':
+         folder_name = dirpath.name
+         if '.G' in folder_name or '_G' in folder_name or 'With Grid' in folder_name:
+             grid_code = 'G'
+         elif '.NG' in folder_name or '_NG' in folder_name or 'No Grid' in folder_name:
+             grid_code = 'NG'
 
     # Map to descriptive names
     metadata = {
@@ -304,6 +372,7 @@ def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value
             validation_report['versions_suppressed'] += len(superseded)
             for loser in superseded:
                 msg = f"Superseded by higher version (v{winner['version_key']} vs v{loser['version_key']}) in {winner['dirpath'].parent.name}"
+                print(f"    [WARNING] SUPPRESSED: {loser['dirpath'].name} (v{loser['version_key']}) overridden by {winner['dirpath'].name}")
                 validation_report['issues'].append((str(loser['dirpath']), msg))
         
         # Load Data for the Winner only
@@ -327,8 +396,17 @@ def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value
             data_by_config_aoa[key]['drag'].extend(drag_data)
             
             # Populate metadata
+            from copy import deepcopy
+            safe_meta = deepcopy(winner['metadata'])
+            
+            # Ensure critical keys exist
+            if 'turbulence_model' not in safe_meta: 
+                safe_meta['turbulence_model'] = 'Unknown'
+            if 'grid' not in safe_meta: 
+                safe_meta['grid'] = 'N/A'
+                
             for field in ['geometry', 'mesh', 'turbulence_model', 'version', 'grid']:
-                data_by_config_aoa[key][field] = winner['metadata'][field]
+                data_by_config_aoa[key][field] = safe_meta.get(field, 'N/A')
                 
         except Exception as e:
             validation_report['skipped_folders'] += 1
@@ -565,10 +643,11 @@ def get_grouping_key(config_string, mode='default'):
         
     elif mode == 'grid':
         # Group by Geometry + Mesh + Turbulence
-        # We want "4.3.1.NG" vs "4.3.1.G"
-        # Family is "4.3.1"
-        return f"{geom}.{mesh}.{turb}"
-        
+        return f"{parts[0]}.{parts[1]}.{parts[2]}" if len(parts) >= 3 else config_string
+    elif mode == 'expanded':
+         # Expanded mode behaves like turbulence mode (Group by Geom + Mesh)
+         # to allow comparing different turbulence models on efficiency plots.
+         return f"{parts[0]}.{parts[1]}" if len(parts) >= 2 else config_string
     elif mode == 'version':
         # Group by everything except version (which is key)
         # But actually for version comparison, we want the table to be "4.3.1.NG" 
@@ -796,8 +875,7 @@ def plot_convergence_analysis(config, aoa, lift_data, drag_data, output_dir, max
     
     plot_file = convergence_dir / f"convergence_{config}_{aoa}.png"
     try:
-        # plt.savefig(plot_file, dpi=300) # Temporarily disabled due to persistent environment library conflict
-        pass
+        plt.savefig(plot_file, dpi=300) 
     except Exception as e:
         print(f"    ⚠️  Warning: Could not save plot {plot_file.name}: {e}")
     plt.close()
@@ -925,7 +1003,7 @@ def create_data_summary_sheet(wb, all_data, num_iterations, convergence_results)
             
             values = [
                 row_data['turbulence_model'],
-                row_data['aoa'],
+                row_data['aoa_num'],
                 f"{row_data['lift_mean']:.1f}",
                 f"{row_data['lift_cov']:.1f}",
                 f"{row_data['drag_mean']:.1f}",
@@ -1075,6 +1153,13 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
     for base_config in sorted(comparison_data.keys()):
         models_in_config = comparison_data[base_config]
         
+        # Determine all unique turbulence models present for this config
+        # Sort them generally, maybe putting SST first if present for baseline reference
+        unique_models = sorted(list(models_in_config.keys()))
+        if 'SST' in unique_models:
+             unique_models.remove('SST')
+             unique_models.insert(0, 'SST')
+        
         # Table 1: Lift Mean
         ws.cell(row=current_row, column=1, value=f"{base_config} - Lift Mean (N)")
         ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=len(sorted_aoas)+1)
@@ -1092,7 +1177,9 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         ws.cell(row=current_row, column=1).border = border_style
         
         for col_idx, aoa in enumerate(sorted_aoas, 2):
-            ws.cell(row=current_row, column=col_idx, value=aoa).font = header_font
+            # Use numeric AoA for header
+            period_val = extract_aoa_number(aoa)
+            ws.cell(row=current_row, column=col_idx, value=period_val).font = header_font
             ws.cell(row=current_row, column=col_idx).fill = header_fill
             ws.cell(row=current_row, column=col_idx).alignment = header_alignment
             ws.cell(row=current_row, column=col_idx).border = border_style
@@ -1100,7 +1187,7 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         
         # Data rows
         sst_data = models_in_config.get('SST', {})
-        for row_idx, turb_model in enumerate(['SST', 'RNG', 'RSM', 'k-epsilon']):
+        for row_idx, turb_model in enumerate(unique_models):
             if turb_model not in models_in_config:
                 continue
             
@@ -1147,14 +1234,15 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         ws.cell(row=current_row, column=1).border = border_style
         
         for col_idx, aoa in enumerate(sorted_aoas, 2):
-            ws.cell(row=current_row, column=col_idx, value=aoa).font = header_font
+            period_val = extract_aoa_number(aoa)
+            ws.cell(row=current_row, column=col_idx, value=period_val).font = header_font
             ws.cell(row=current_row, column=col_idx).fill = header_fill
             ws.cell(row=current_row, column=col_idx).alignment = header_alignment
             ws.cell(row=current_row, column=col_idx).border = border_style
         current_row += 1
         
         # Data rows
-        for row_idx, turb_model in enumerate(['SST', 'RNG', 'RSM', 'k-epsilon']):
+        for row_idx, turb_model in enumerate(unique_models):
             if turb_model not in models_in_config:
                 continue
             
@@ -1200,14 +1288,15 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         ws.cell(row=current_row, column=1).border = border_style
         
         for col_idx, aoa in enumerate(sorted_aoas, 2):
-            ws.cell(row=current_row, column=col_idx, value=aoa).font = header_font
+            period_val = extract_aoa_number(aoa)
+            ws.cell(row=current_row, column=col_idx, value=period_val).font = header_font
             ws.cell(row=current_row, column=col_idx).fill = header_fill
             ws.cell(row=current_row, column=col_idx).alignment = header_alignment
             ws.cell(row=current_row, column=col_idx).border = border_style
         current_row += 1
         
         # Data rows
-        for row_idx, turb_model in enumerate(['SST', 'RNG', 'RSM', 'k-epsilon']):
+        for row_idx, turb_model in enumerate(unique_models):
             if turb_model not in models_in_config:
                 continue
             
@@ -1244,14 +1333,15 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         ws.cell(row=current_row, column=1).border = border_style
         
         for col_idx, aoa in enumerate(sorted_aoas, 2):
-            ws.cell(row=current_row, column=col_idx, value=aoa).font = header_font
+            period_val = extract_aoa_number(aoa)
+            ws.cell(row=current_row, column=col_idx, value=period_val).font = header_font
             ws.cell(row=current_row, column=col_idx).fill = header_fill
             ws.cell(row=current_row, column=col_idx).alignment = header_alignment
             ws.cell(row=current_row, column=col_idx).border = border_style
         current_row += 1
         
         # Data rows
-        for row_idx, turb_model in enumerate(['SST', 'RNG', 'RSM', 'k-epsilon']):
+        for row_idx, turb_model in enumerate(unique_models):
             if turb_model not in models_in_config:
                 continue
             
@@ -1270,6 +1360,7 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
                     ws.cell(row=current_row, column=col_idx).border = border_style
                     ws.cell(row=current_row, column=col_idx).fill = fill
             current_row += 1
+
         current_row += 3
     
     # Autofit columns
@@ -1522,7 +1613,7 @@ def create_version_comparison_sheet(
                 count_b = metrics_b['count'] if metrics_b else 0
 
                 row_values = [
-                    aoa,
+                    extract_aoa_number(aoa),
                     fmt(lift_a, 3),
                     fmt(lift_b, 3),
                     fmt_delta(lift_a, lift_b, 3),
@@ -1692,7 +1783,7 @@ def _create_auto_version_comparison_sheet(wb, all_data, num_iterations, converge
         
         # Data Rows
         for aoa in sorted_aoas:
-            ws.cell(row=current_row, column=1, value=aoa).alignment = Alignment(horizontal='center')
+            ws.cell(row=current_row, column=1, value=extract_aoa_number(aoa)).alignment = Alignment(horizontal='center')
             
             subitems = aoa_map[aoa]
             # Map version_key to data
@@ -1782,7 +1873,7 @@ def create_coefficients_sheet(wb, all_data, num_iterations, convergence_results,
         C_D_cov = (C_D_std / C_D * 100) if C_D != 0 else 0
         
         fill = row_fill_light if row % 2 == 0 else row_fill_white
-        values = [config, data['turbulence_model'], aoa, f"{C_L:.6f}", f"{C_L_cov:.1f}", f"{C_D:.6f}", f"{C_D_cov:.1f}"]
+        values = [config, data['turbulence_model'], extract_aoa_number(aoa), f"{C_L:.6f}", f"{C_L_cov:.1f}", f"{C_D:.6f}", f"{C_D_cov:.1f}"]
         
         for col_idx, val in enumerate(values, 1):
             cell = ws.cell(row=row, column=col_idx, value=val)
@@ -1878,7 +1969,7 @@ def create_optimized_statistics_sheet(wb, all_data, convergence_results, num_ite
         
         fill = row_fill_light if row % 2 == 0 else row_fill_white
         values = [
-            data['turbulence_model'], config, aoa,
+            data['turbulence_model'], config, extract_aoa_number(aoa),
             len(orig_lift), optimal_trim, len(opt_lift),
             f"{orig_lift_mean:.3f}", f"{opt_lift_mean:.3f}",
             f"{orig_lift_cov:.2f}%", f"{opt_lift_cov:.2f}%", f"{(orig_lift_cov - opt_lift_cov):+.2f}%",
@@ -1915,159 +2006,471 @@ def apply_excel_formatting(excel_file):
 
 # ==================== PLOTTING FUNCTIONS ====================
 
-def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_map, value_mappings, comparison_mode='default'):
+def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_map, value_mappings, comparison_mode='default', max_cov_threshold=None):
     """Create all coefficient graphs organized by comparison family."""
     
+    import itertools
+    colors = ACADEMIC_COLORS
+    markers = ACADEMIC_MARKERS
+    
+    # Helper to extract grid status from config string
+    def get_grid_status(config):
+        if '.NG' in config or 'No Grid' in config:
+            return 'No Grid'
+        elif '.G' in config or 'With Grid' in config:
+            return 'With Grid'
+        return 'Unknown'
+    
     # 1. Group data by "Family" (The Graph Title/Folder)
-    #    and "Series" (The Line on the Graph)
+    #    For expanded/grid modes, we also track grid status
     graphs_data = defaultdict(lambda: defaultdict(list))
+    graphs_data_by_grid = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # For expanded
     
     for (config, aoa), coeff in coefficient_data.items():
         # Family: The common denominator (e.g., Geometry + Mesh)
         family = get_grouping_key(config, mode=comparison_mode)
+        grid_status = get_grid_status(config)
+        turb_model = coeff.get('turbulence_model', 'Unknown')
         
-        # Series Label: What distinguishes this line? (e.g., Turbulence Model, or Grid Type)
+        # Attach grid status to coeff for later use
+        coeff_with_grid = {**coeff, '_grid_status': grid_status, '_config': config}
+        
+        # Series Label: What distinguishes this line?
         if comparison_mode == 'turbulence':
-            series_label = coeff['turbulence_model']
+            series_label = turb_model
+        elif comparison_mode == 'expanded':
+            # For expanded, series is turbulence model (primary grouping is by grid)
+            series_label = turb_model
         elif comparison_mode == 'grid':
-            series_label = "With Grid" if "With Grid" in str(coeff) or ".G" in config else "No Grid"
-            # Better check from source data if possible, but coeff has limited fields.
-            # coeff dict currently has: turbulence_model, aoa_degrees, C_L, etc.
-            # It implies we need to pass full metadata or rely on config string?
-            # Let's rely on config string for safety if 'grid' not in coeff.
-            if '.NG' in config or 'No Grid' in config:
-                series_label = 'No Grid'
-            elif '.G' in config or 'With Grid' in config:
-                series_label = 'With Grid'
-            else:
-                series_label = 'Unknown'
+            series_label = grid_status
         elif comparison_mode == 'version':
-             # Extract version from somewhere? 
-             # coeff data doesn't have version...
-             # We might need to look it up in all_data if possible, but all_data key matches?
-             # Yes: (config, aoa) key matches.
-             org_data = all_data.get((config, aoa), {})
-             ver = org_data.get('version', 'V?')
-             series_label = f"{ver}"
-        else: # default
-             series_label = coeff['turbulence_model']
+            org_data = all_data.get((config, aoa), {})
+            ver = org_data.get('version', 'V?')
+            series_label = f"{ver}"
+        else:  # default
+            series_label = turb_model
 
-        graphs_data[family][series_label].append(coeff)
-
-    # Define minimal styles or cycling colors
-    import itertools
-    # Color cycle: Blue, Orange, Green, Red, Purple, Brown, Pink, Gray, Olive, Cyan
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-    markers = ['o', 's', '^', 'D', 'v', '>', '<', 'p', '*', 'h']
+        graphs_data[family][series_label].append(coeff_with_grid)
+        
+        # For expanded/grid modes, also group by grid status
+        if comparison_mode in ('expanded', 'grid'):
+            graphs_data_by_grid[family][grid_status][turb_model].append(coeff_with_grid)
     
     # Create graphs for each Family
     for family in sorted(graphs_data.keys()):
         series_dict = graphs_data[family]
         
-        # Setup Folder
-        # Save directly in "coefficient_graphs/{family}"
-        graph_dir = output_dir / "coefficient_graphs" / family
-        graph_dir.mkdir(parents=True, exist_ok=True)
+        # === COMPARISON PLOTS ===
+        if comparison_mode == 'expanded':
+            # For expanded mode, create multiple comparison sets:
+            
+            grid_data = graphs_data_by_grid[family]
+            
+            # 1 & 2: Turbulence comparison per grid status
+            for grid_status in ['With Grid', 'No Grid']:
+                if grid_status not in grid_data:
+                    continue
+                    
+                safe_grid = grid_status.replace(' ', '_')
+                comp_dir = output_dir / "coefficient_graphs" / "Comparison" / f"Turbulence_{safe_grid}" / family
+                comp_dir.mkdir(parents=True, exist_ok=True)
+                
+                plot_items = []
+                color_cycle = itertools.cycle(colors)
+                marker_cycle = itertools.cycle(markers)
+                
+                for turb_name in sorted(grid_data[grid_status].keys()):
+                    items = sorted(grid_data[grid_status][turb_name], key=lambda x: x['aoa_degrees'])
+                    if not items:
+                        continue
+                        
+                    aoa_vals = np.array([x['aoa_degrees'] for x in items])
+                    C_L_vals = np.array([x['C_L'] for x in items])
+                    C_D_vals = np.array([x['C_D'] for x in items])
+                    C_L_std = np.array([x.get('C_L_std', 0) for x in items])
+                    C_D_std = np.array([x.get('C_D_std', 0) for x in items])
+                    
+                    plot_items.append({
+                        'aoa': aoa_vals, 'C_L': C_L_vals, 'C_D': C_D_vals,
+                        'C_L_std': C_L_std, 'C_D_std': C_D_std,
+                        'style': {'label': turb_name, 'color': next(color_cycle), 'marker': next(marker_cycle)}
+                    })
+                
+                if plot_items:
+                    _plot_standard_aerodynamics(plot_items, comp_dir, f'{family} ({grid_status})', max_cov_threshold)
+            
+            # 3: Grid vs No Grid for each turbulence model
+            all_turb_models = set()
+            for grid_status in grid_data:
+                all_turb_models.update(grid_data[grid_status].keys())
+                
+            for turb_name in sorted(all_turb_models):
+                safe_turb = "".join([c for c in turb_name if c.isalnum() or c in (' ', '.', '_', '-')]).strip()
+                comp_dir = output_dir / "coefficient_graphs" / "Comparison" / f"Grid_{safe_turb}" / family
+                comp_dir.mkdir(parents=True, exist_ok=True)
+                
+                plot_items = []
+                color_cycle = itertools.cycle(colors)
+                marker_cycle = itertools.cycle(markers)
+                
+                for grid_status in ['With Grid', 'No Grid']:
+                    if grid_status in grid_data and turb_name in grid_data[grid_status]:
+                        items = sorted(grid_data[grid_status][turb_name], key=lambda x: x['aoa_degrees'])
+                        if not items:
+                            continue
+                            
+                        # Standard arrays
+                        aoa_vals = np.array([x['aoa_degrees'] for x in items])
+                        C_L_vals = np.array([x['C_L'] for x in items])
+                        C_D_vals = np.array([x['C_D'] for x in items])
+                        C_L_std = np.array([x.get('C_L_std', 0) for x in items])
+                        C_D_std = np.array([x.get('C_D_std', 0) for x in items])
+                        
+                        plot_items.append({
+                            'aoa': aoa_vals, 'C_L': C_L_vals, 'C_D': C_D_vals,
+                            'C_L_std': C_L_std, 'C_D_std': C_D_std,
+                            'style': {'label': grid_status, 'color': next(color_cycle), 'marker': next(marker_cycle)}
+                        })
+                
+                if plot_items:
+                    _plot_standard_aerodynamics(plot_items, comp_dir, f'{family} - {turb_name}', max_cov_threshold)
         
-        # We need to collect ALL series to plot them on the same figure
-        plot_items = []
-        
-        # Assign styles to series sorted by name for consistency
-        sorted_series_names = sorted(series_dict.keys())
-        color_cycle = itertools.cycle(colors)
-        marker_cycle = itertools.cycle(markers)
-        
-        for series_name in sorted_series_names:
-            items = series_dict[series_name]
+        else:
+            # Standard comparison (all series on one graph)
+            comp_dir = output_dir / "coefficient_graphs" / "Comparison" / family
+            comp_dir.mkdir(parents=True, exist_ok=True)
             
-            # Sort by AoA
-            items.sort(key=lambda x: x['aoa_degrees'])
+            plot_items = []
+            color_cycle = itertools.cycle(colors)
+            marker_cycle = itertools.cycle(markers)
             
-            aoa_vals = np.array([x['aoa_degrees'] for x in items])
-            C_L_vals = np.array([x['C_L'] for x in items])
-            C_D_vals = np.array([x['C_D'] for x in items])
-            # Std devs
-            C_L_std = np.array([x.get('C_L_std', 0) for x in items])
-            C_D_std = np.array([x.get('C_D_std', 0) for x in items])
+            for series_name in sorted(series_dict.keys()):
+                items = sorted(series_dict[series_name], key=lambda x: x['aoa_degrees'])
+                if not items:
+                    continue
+                    
+                aoa_vals = np.array([x['aoa_degrees'] for x in items])
+                C_L_vals = np.array([x['C_L'] for x in items])
+                C_D_vals = np.array([x['C_D'] for x in items])
+                C_L_std = np.array([x.get('C_L_std', 0) for x in items])
+                C_D_std = np.array([x.get('C_D_std', 0) for x in items])
+                
+                plot_items.append({
+                    'aoa': aoa_vals, 'C_L': C_L_vals, 'C_D': C_D_vals,
+                    'C_L_std': C_L_std, 'C_D_std': C_D_std,
+                    'style': {'label': series_name, 'color': next(color_cycle), 'marker': next(marker_cycle)},
+                    # Store derived metrics base if needed, though they are recalculated inside
+                    'endurance': items[0].get('endurance', []), # Assuming raw data has it or not
+                    # But we also need CL_CD...
+                    # Actually, plot_items has dicts with arrays.
+                    # We can store raw metadata if we want.
+                })
             
-            style = {
-                'label': series_name,
-                'color': next(color_cycle),
-                'marker': next(marker_cycle)
-            }
-            
-            plot_items.append({
-                'aoa': aoa_vals,
-                'C_L': C_L_vals,
-                'C_D': C_D_vals,
-                'C_L_std': C_L_std,
-                'C_D_std': C_D_std,
-                'style': style
-            })
-            
-        # Plot 1: C_L vs AoA (Multi-series)
-        _plot_multi_series(plot_items, 'C_L', f'{family} - Lift Coefficient', 'Lift Coefficient ($C_L$)',
-                          graph_dir / "C_L_vs_AoA.png")
-                          
-        # Plot 2: C_D vs AoA (Multi-series)
-        _plot_multi_series(plot_items, 'C_D', f'{family} - Drag Coefficient', 'Drag Coefficient ($C_D$)',
-                          graph_dir / "C_D_vs_AoA.png")
-                          
-        # Plot 3: Polar (C_L vs C_D) (Multi-series)
-        _plot_multi_polar(plot_items, f'{family} - Drag Polar', 
-                         graph_dir / "Drag_Polar.png")
+            if plot_items:
+                # Determine title
+                plot_title = family
+                if comparison_mode == 'default':
+                    # In default mode, 'family' is config string (e.g. 4.3.2.NG).
+                    # All series have same turbulence model.
+                    # Get it from first item of first series
+                    try:
+                        first_series_key = sorted(series_dict.keys())[0]
+                        first_item = series_dict[first_series_key][0]
+                        turb_model = first_item.get('turbulence_model', '')
+                        if turb_model and turb_model != 'Unknown':
+                            plot_title = f"{family} {turb_model}"
+                    except (IndexError, KeyError):
+                        pass
+                
+                # Standard Aerodynamics
+                _plot_standard_aerodynamics(plot_items, comp_dir, plot_title, max_cov_threshold)
 
-def _plot_multi_series(plot_items, val_key, title, ylabel, output_path):
-    """Refactored plotter for multiple series."""
+        # === SINGLE PLOTS (Individual Series) ===
+        # For expanded/grid modes, organize by grid status first
+        if comparison_mode in ('expanded', 'grid'):
+            grid_data = graphs_data_by_grid[family]
+            for grid_status in sorted(grid_data.keys()):
+                safe_grid = grid_status.replace(' ', '_')
+                for turb_name in sorted(grid_data[grid_status].keys()):
+                    items = sorted(grid_data[grid_status][turb_name], key=lambda x: x['aoa_degrees'])
+                    if not items:
+                        continue
+                        
+                    safe_turb = "".join([c for c in turb_name if c.isalnum() or c in (' ', '.', '_', '-')]).strip()
+                    single_dir = output_dir / "coefficient_graphs" / "Single" / safe_grid / safe_turb / family
+                    single_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    aoa_vals = np.array([x['aoa_degrees'] for x in items])
+                    C_L_vals = np.array([x['C_L'] for x in items])
+                    C_D_vals = np.array([x['C_D'] for x in items])
+                    C_L_std = np.array([x.get('C_L_std', 0) for x in items])
+                    C_D_std = np.array([x.get('C_D_std', 0) for x in items])
+                    
+                    # Create single item list
+                    color_cycle = itertools.cycle(colors)
+                    marker_cycle = itertools.cycle(markers)
+                    item = {
+                        'aoa': aoa_vals, 'C_L': C_L_vals, 'C_D': C_D_vals,
+                        'C_L_std': C_L_std, 'C_D_std': C_D_std,
+                        'style': {'label': turb_name, 'color': next(color_cycle), 'marker': next(marker_cycle)}
+                    }
+                    
+                    _plot_standard_aerodynamics([item], single_dir, f'{family} - {turb_name} ({grid_status})', max_cov_threshold)
+        else:
+            # Standard single plots
+            for series_name in sorted(series_dict.keys()):
+                items = sorted(series_dict[series_name], key=lambda x: x['aoa_degrees'])
+                if not items:
+                    continue
+                    
+                safe_series = "".join([c for c in series_name if c.isalnum() or c in (' ', '.', '_', '-')]).strip()
+                single_dir = output_dir / "coefficient_graphs" / "Single" / safe_series / family
+                single_dir.mkdir(parents=True, exist_ok=True)
+                
+                aoa_vals = np.array([x['aoa_degrees'] for x in items])
+                C_L_vals = np.array([x['C_L'] for x in items])
+                C_D_vals = np.array([x['C_D'] for x in items])
+                C_L_std = np.array([x.get('C_L_std', 0) for x in items])
+                C_D_std = np.array([x.get('C_D_std', 0) for x in items])
+                
+                color_cycle = itertools.cycle(colors)
+                marker_cycle = itertools.cycle(markers)
+                item = {
+                    'aoa': aoa_vals, 'C_L': C_L_vals, 'C_D': C_D_vals,
+                    'C_L_std': C_L_std, 'C_D_std': C_D_std,
+                    'style': {'label': series_name, 'color': next(color_cycle), 'marker': next(marker_cycle)}
+                }
+                
+                _plot_standard_aerodynamics([item], single_dir, f'{family} ({series_name})', max_cov_threshold)
+
+def _plot_multi_series(plot_items, val_key, title, ylabel, output_path, max_cov_threshold=None, x_key='aoa', xlabel='Angle of Attack $\\alpha$ [deg]'):
+    """Refactored plotter for multiple series with premium academic style."""
+    set_plot_style()
     plt.figure(figsize=(10, 7))
     
+    points_removed = 0
+    total_points = 0
+    
     for item in plot_items:
-        x = item['aoa']
+        x = item[x_key]
         y = item[val_key]
         err = item.get(f'{val_key}_std')
         s = item['style']
         
-        plt.errorbar(x, y, yerr=err, label=s['label'], 
-                     color=s['color'], marker=s['marker'], 
-                     capsize=3, linestyle='-', linewidth=2, markersize=8, alpha=0.9)
-                     
-    plt.title(title, fontsize=14, fontweight='bold')
-    plt.xlabel('Angle of Attack (degrees)', fontsize=12)
-    plt.ylabel(ylabel, fontsize=12)
-    plt.grid(True, linestyle='--', alpha=0.6)
-    plt.legend(fontsize=10)
-    plt.tight_layout()
-    try:
-        plt.savefig(output_path, dpi=300)
-    except Exception as e:
-        print(f"Warning: Failed to save graph {output_path}: {e}")
-    plt.close()
-
-def _plot_multi_polar(plot_items, title, output_path):
-    """Refactored plotter for Drag Polar (C_L vs C_D)."""
-    plt.figure(figsize=(10, 7))
-    
-    for item in plot_items:
-        x = item['C_D'] # Drag is X usually in polar? Or Y? aerodynamics convention: Cd x-axis, Cl y-axis
-        y = item['C_L']
-        s = item['style']
+        # Calculate stats for filtering if needed
+        # item has C_L_std, C_L, etc.
+        # We need to compute COV: (std / mean) * 100
         
-        # err bars complicated for polar, skipping for clarity unless requested
-        plt.plot(x, y, label=s['label'], 
-                 color=s['color'], marker=s['marker'], 
-                 linestyle='-', linewidth=2, markersize=8, alpha=0.9)
-
-    plt.title(title, fontsize=14, fontweight='bold')
-    plt.xlabel('Drag Coefficient ($C_D$)', fontsize=12)
-    plt.ylabel('Lift Coefficient ($C_L$)', fontsize=12)
-    plt.grid(True, linestyle='--', alpha=0.6)
-    plt.legend(fontsize=10)
+        # Create a mask for valid data (including COV check)
+        valid_mask = ~np.isnan(y)
+        
+        if max_cov_threshold is not None and err is not None:
+             # Calculate COV array, handling division by zero
+             with np.errstate(divide='ignore', invalid='ignore'):
+                 cov_vals = np.abs((err / y) * 100)
+             
+             # Filter based on threshold
+             cov_mask = (cov_vals <= max_cov_threshold) | np.isnan(cov_vals)
+             
+             points_in_series = np.sum(valid_mask)
+             valid_mask = valid_mask & cov_mask
+             points_kept = np.sum(valid_mask)
+             removed = points_in_series - points_kept
+             
+             if removed > 0:
+                 points_removed += removed
+                 print(f"    [INFO]  Filtered {removed} points from {s['label']} (COV > {max_cov_threshold}%)")
+        
+        if not np.any(valid_mask): continue
+        
+        plt.errorbar(x[valid_mask], y[valid_mask], yerr=err[valid_mask] if err is not None else None, 
+                     label=s['label'], 
+                     color=s['color'], marker=s['marker'], 
+                     capsize=3, linestyle='-', linewidth=2, markersize=8, alpha=0.9,
+                     markeredgecolor='white', markeredgewidth=0.5)
+                     
+    plt.title(title, pad=20)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    
+    # Modern legend and layout
+    plt.legend(frameon=True, fancybox=True, framealpha=0.9, edgecolor='0.8', loc='best')
     plt.tight_layout()
+    
     try:
-        plt.savefig(output_path, dpi=300)
+        plt.savefig(output_path, bbox_inches='tight')
     except Exception as e:
         print(f"Warning: Failed to save graph {output_path}: {e}")
     plt.close()
+
+
+def _calculate_derived_aerodynamics(plot_items):
+    """Calculates L/D and Endurance Factor for plot items in place."""
+    for item in plot_items:
+        # Check if already calculated
+        if 'L_D' in item: continue
+        
+        # Calculate derived metrics
+        C_L = item['C_L']
+        C_D = item['C_D']
+        
+        # Avoid division by zero
+        with np.errstate(divide='ignore', invalid='ignore'):
+             L_D = np.where(np.abs(C_D) > 1e-9, C_L / C_D, 0)
+             # Endurance Factor: CL^1.5 / CD
+             # Handle potential negative Lift (mostly for symmetry) by using abs(CL), though endurance implies positive lift.
+             Endurance = np.where(np.abs(C_D) > 1e-9, (np.abs(C_L)**1.5) / C_D, 0)
+             
+        item['CL_CD'] = L_D
+        item['Endurance'] = Endurance
+
+def _plot_standard_aerodynamics(plot_items, output_dir, title_prefix, max_cov_threshold=None):
+    """Generates standard set of aerodynamic plots: Lift, Drag, Polar, CL/CD, Endurance."""
+    # Ensure derived metrics exist
+    _calculate_derived_aerodynamics(plot_items)
+    
+    # Helper for consistent naming
+    def make_name(suffix):
+        clean_prefix = "".join([c for c in title_prefix if c.isalnum() or c in (' ', '.', '_', '-')]).strip().replace(' ', '_')
+        return f"{clean_prefix}_{suffix}.png"
+
+    # 1. C_L vs AoA
+    _plot_multi_series(plot_items, 'C_L', f'{title_prefix} - Lift Coefficient', 
+                      'Lift Coefficient ($C_L$)', output_dir / make_name("Lift_Coefficient"), max_cov_threshold)
+    # 2. C_D vs AoA
+    _plot_multi_series(plot_items, 'C_D', f'{title_prefix} - Drag Coefficient', 
+                      'Drag Coefficient ($C_D$)', output_dir / make_name("Drag_Coefficient"), max_cov_threshold)
+    # 3. Drag Polar (C_L vs C_D)
+    _plot_multi_series(plot_items, 'C_L', f'{title_prefix} - Drag Polar', 
+                      'Lift Coefficient ($C_L$)', output_dir / make_name("Drag_Polar"), max_cov_threshold,
+                      x_key='C_D', xlabel='Drag Coefficient ($C_D$)')
+    # 4. CL/CD vs AoA
+    _plot_multi_series(plot_items, 'CL_CD', f'{title_prefix} - Lift-to-Drag Ratio', 
+                      'Lift-to-Drag Ratio ($C_L/C_D$)', output_dir / make_name("Lift_to_Drag_Ratio"), max_cov_threshold)
+    # 5. Endurance vs AoA
+    _plot_multi_series(plot_items, 'Endurance', f'{title_prefix} - Endurance Factor', 
+                      'Endurance Factor ($C_L^{1.5} / C_D$)', output_dir / make_name("Endurance_Factor"), max_cov_threshold)
+    
+    # 6. Combined CL/CD (Dual Axis)
+    # Note: _plot_dual_axis_cl_cd generates its own filename currently. We should probably update it too or leave it consistent.
+    # It uses "Combined_CL_CD_vs_AoA.png". Let's update it to match pattern inside the function if needed, 
+    # but for now let's pass a specific output path if possible? The function doesn't take filename arg.
+    # Let's rename the function to accept filename or handle it internally.
+    # For now, let's just stick to the main ones.
+    _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshold)
+    
+    # 7. Aerodynamic Summary (Quad Plot)
+    _plot_quad_aerodynamics(plot_items, output_dir, title_prefix, max_cov_threshold)
+
+
+def create_expanded_graphs(coefficient_data, output_dir, comparison_mode='expanded', max_cov_threshold=None):
+    """
+    Creates 'Expanded Graphs' plotting the ratio of Grid Efficiency / No-Grid Efficiency.
+    Ratio = (L/D)_G / (L/D)_NG
+    """
+    # 1. Organize data for pairing
+    # Structure: family_dict[geom_mesh_key][turb_model][aoa] = {'G': val, 'NG': val}
+    pair_data = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+    
+    for (config, aoa), coeff in coefficient_data.items():
+        # Identify Geometry + Mesh (Family)
+        # Use the provided comparison mode for grouping
+        family = get_grouping_key(config, mode=comparison_mode)
+        
+        # Identify Turbulence Model
+        turb = coeff.get('turbulence_model', 'Unknown')
+        
+        # Identify Grid Status
+        is_grid = False
+        if '.G' in config or 'With Grid' in str(coeff):
+            is_grid = True # It is the Grid version
+        if '.NG' in config or 'No Grid' in str(coeff):
+            is_grid = False # It is the No Grid version
+            
+        # Store
+        key = 'G' if is_grid else 'NG'
+        pair_data[family][turb][aoa][key] = coeff
+
+    # 2. Calculate Ratios and Build Plot Series
+    # We want to plot one line per Turbulence Model for each Family
+    
+    for family, turb_dict in pair_data.items():
+        # Prepare plot items for this family
+        plot_items = []
+        
+        
+        # Setup output directory deferred until we have items
+        expanded_dir = output_dir / "coefficient_graphs" / "Expanded_Graphs" / family
+        
+        for turb, aoa_dict in turb_dict.items():
+            # For this turbulence model, collect (AoA, Ratio) points
+            aoa_list = []
+            ratio_list = []
+            ratio_std_list = [] # We won't propagate error strictly for now, too complex?
+            # Actually, standard error prop for division: R = A/B -> (dR/R)^2 = (dA/A)^2 + (dB/B)^2
+            
+            # Sort AoAs numerically (keys are strings like 'AoA_10')
+            def extract_aoa_num(aoa_str):
+                try:
+                    return float(aoa_str.replace('AoA_', ''))
+                except:
+                    return 0
+            sorted_aoas = sorted(aoa_dict.keys(), key=extract_aoa_num)
+            for aoa in sorted_aoas:
+                pair = aoa_dict[aoa]
+                if 'G' in pair and 'NG' in pair:
+                    g = pair['G']
+                    ng = pair['NG']
+                    
+                    # Calculate Efficiency
+                    # Handle near-zero Drag to avoid infinity?
+                    if abs(g['C_D']) < 1e-6 or abs(ng['C_D']) < 1e-6:
+                        continue
+                        
+                    eff_g = g['C_L'] / g['C_D']
+                    eff_ng = ng['C_L'] / ng['C_D']
+                    
+                    if abs(eff_ng) < 1e-6:
+                        continue
+                        
+                    ratio = eff_g / eff_ng
+                    
+                    aoa_list.append(extract_aoa_num(aoa))
+                    ratio_list.append(ratio)
+                    # ratio_std_list.append(0) # Todo: implement error prop if needed
+            
+            if not aoa_list:
+                continue
+                
+            # Create series item
+            # We need a style
+            # Let's grab a color based on turbulence model name hash or cycle?
+            # We can't easy cycle here because we loop turb by turb.
+            # Let's map turb names to ACADEMIC_COLORS indices if possible, or just cycle.
+            # For consistent colors:
+            turb_idx = abs(hash(turb)) % len(ACADEMIC_COLORS)
+            
+            plot_items.append({
+                'aoa': np.array(aoa_list),
+                'Ratio': np.array(ratio_list),
+                'Ratio_std': None, # Skipping error bars for ratio for now
+                'style': {
+                    'label': turb,
+                    'color': ACADEMIC_COLORS[turb_idx],
+                    'marker': ACADEMIC_MARKERS[turb_idx]
+                }
+            })
+            
+        if not plot_items:
+            continue
+            
+        # 3. Plot
+        expanded_dir.mkdir(parents=True, exist_ok=True)
+        _plot_multi_series(plot_items, 'Ratio', 
+                           f'{family} - Efficiency Improvement', 
+                           'Efficiency Ratio ($(C_L/C_D)_G / (C_L/C_D)_{NG}$)',
+                           expanded_dir / "Efficiency_Ratio_vs_AoA.png",
+                           max_cov_threshold=max_cov_threshold)
 
 
 def _plot_coefficient_vs_aoa(aoa_vals, coeff_vals, std_vals, style, turb_name, config, ylabel, title, output_path):
@@ -2122,4 +2525,317 @@ def _plot_combined(aoa_vals, C_L_vals, C_D_vals, C_L_std_vals, C_D_std_vals, sty
         plt.savefig(output_path, dpi=300)
     except Exception as e:
         print(f"Warning: Could not save graph {output_path}: {e}")
+    plt.close()
+
+import matplotlib.pyplot as plt
+from collections import defaultdict
+import numpy as np
+
+def plot_convergence_summary(convergence_results, all_data, output_dir, comparison_mode='turbulence'):
+    """
+    Plots convergence metrics (COV, Trim amount) vs AoA for different models/grids.
+    Grouped by 'Family' (Geometry.Mesh) to allow comparison of Turb/Grid.
+    """
+    if not convergence_results:
+        return
+
+    # 1. Organize data by Family -> SimType -> AoA
+    summary_data = defaultdict(lambda: defaultdict(dict))
+    
+    for (config, aoa), results in convergence_results.items():
+        # Get data entry
+        data = all_data.get((config, aoa))
+        if not data: continue
+        
+        # Determine Family (Grouping)
+        if comparison_mode == 'turbulence':
+            # Group by Geom.Mesh.Grid
+            # Family should be roughly config minus turbulence model
+            # Let's use get_grouping_key but ensure grid is part of it if relevant
+            # Or simpler: Geom.Mesh is the base, everything else is variations
+            # Actually, standard is Geom.Mesh.Turb.Grid.
+            # For turbulence comparison, we want to group by Geom.Mesh.Grid (so Turb varies)
+            # The existing get_grouping_key(mode='turbulence') returns Geom.Mesh
+            # If configurations differ by Grid (NG vs G), we separate them
+            grid_suffix = ".G" if data.get('grid') in ['G', 'With Grid'] else ".NG" if data.get('grid') in ['NG', 'No Grid'] else ""
+            base_family = get_grouping_key(config, mode='turbulence') + grid_suffix
+            
+            sim_type = data['turbulence_model']
+            
+        elif comparison_mode == 'grid':
+            # Group by Geom.Mesh.Turb (so Grid varies)
+            base_family = get_grouping_key(config, mode='grid')
+            sim_type = "With Grid" if data.get('grid') in ['G', 'With Grid'] else "No Grid"
+            
+        else:
+            base_family = get_grouping_key(config, mode='default')
+            sim_type = "Default"
+
+        # Extract metrics
+        # Lift COV
+        lift_cov_min_idx = np.argmin(results['lift']['cov'])
+        lift_cov_min = results['lift']['cov'][lift_cov_min_idx]
+        lift_trim_opt = results['lift']['iterations_removed'][lift_cov_min_idx]
+        
+        # Drag COV
+        drag_cov_min_idx = np.argmin(results['drag']['cov'])
+        drag_cov_min = results['drag']['cov'][drag_cov_min_idx]
+        drag_trim_opt = results['drag']['iterations_removed'][drag_cov_min_idx]
+        
+        aoa_num = extract_aoa_number(aoa)
+        
+        summary_data[base_family][sim_type][aoa_num] = {
+            'lift_cov': lift_cov_min,
+            'lift_trim': lift_trim_opt,
+            'drag_cov': drag_cov_min,
+            'drag_trim': drag_trim_opt
+        }
+
+    # 2. Plot for each Family
+    conv_dir = output_dir / "convergence_analysis" / "comparison_summaries"
+    conv_dir.mkdir(parents=True, exist_ok=True)
+    
+    for family, sims in summary_data.items():
+        # Setup Figure: 2x2
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+        ((ax1, ax2), (ax3, ax4)) = axes
+        
+        # Colors/Markers
+        markers = ['o', 's', '^', 'D', 'v', 'p', 'P', '*', 'h', 'X']
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+        
+        sorted_sim_types = sorted(sims.keys())
+        
+        legend_handles = []
+        legend_labels = []
+        
+        for idx, sim_type in enumerate(sorted_sim_types):
+            color = colors[idx % len(colors)]
+            marker = markers[idx % len(markers)]
+            
+            sim_points = sims[sim_type]
+            aoas = sorted(sim_points.keys())
+            
+            l_cov = [sim_points[a]['lift_cov'] for a in aoas]
+            d_cov = [sim_points[a]['drag_cov'] for a in aoas]
+            l_trim = [sim_points[a]['lift_trim'] for a in aoas]
+            d_trim = [sim_points[a]['drag_trim'] for a in aoas]
+            
+            # Plot
+            line, = ax1.plot(aoas, l_cov, linestyle='-', marker=marker, color=color, label=sim_type, alpha=0.8)
+            ax2.plot(aoas, d_cov, linestyle='-', marker=marker, color=color, label=sim_type, alpha=0.8)
+            ax3.plot(aoas, l_trim, linestyle='--', marker=marker, color=color, label=sim_type, alpha=0.8)
+            ax4.plot(aoas, d_trim, linestyle='--', marker=marker, color=color, label=sim_type, alpha=0.8)
+            
+            legend_handles.append(line)
+            legend_labels.append(sim_type)
+
+        # Styling
+        for ax in axes.flat:
+            ax.grid(True, alpha=0.3)
+            ax.set_xlabel(r'Angle of Attack $\alpha$ [deg]')
+        
+        ax1.set_ylabel('Min Lift COV (%)')
+        ax1.set_title(f'Lift Convergence Stability\n{family}', fontweight='bold')
+        
+        ax2.set_ylabel('Min Drag COV (%)')
+        ax2.set_title(f'Drag Convergence Stability\n{family}', fontweight='bold')
+        
+        ax3.set_ylabel('Optimal Iteration Trim')
+        ax3.set_title(f'Lift Optimal Trim Amount\n{family}', fontweight='bold')
+        
+        ax4.set_ylabel('Optimal Iteration Trim')
+        ax4.set_title(f'Drag Optimal Trim Amount\n{family}', fontweight='bold')
+        
+        fig.legend(legend_handles, legend_labels, loc='lower center', ncol=min(len(legend_labels), 5), bbox_to_anchor=(0.5, 0.02))
+        plt.subplots_adjust(bottom=0.12, hspace=0.3)
+        
+        # Save
+        plot_path = conv_dir / f"Convergence_Summary_{family}.png"
+        try:
+            plt.savefig(plot_path, dpi=300)
+            print(f"    [OK] Generated summary plot: {plot_path.name}")
+        except Exception as e:
+            print(f"    [WARN] Failed to save summary plot {plot_path.name}: {e}")
+        plt.close()
+
+def _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshold=None):
+    """Generates a dual-axis plot with CL on left and CD on right."""
+    set_plot_style()
+    fig, ax1 = plt.subplots(figsize=(10, 7))
+    
+    ax2 = ax1.twinx()
+    
+    # Colors for the two axes
+    color_cl = '#1f77b4' # Blue
+    color_cd = '#d62728' # Red
+    
+    has_data = False
+    
+    for item in plot_items:
+        # Check validity similar to _plot_multi_series
+        # But here we are plotting ONE item usually (single mode) or multiple?
+        # The request said "for default comparison, in single graphs". 
+        # In single graphs mode, plot_items usually contains just one series.
+        # But the function structure supports multiple. We should probably just plot all of them if passed.
+        # However, dual axis with multiple series gets messy (multiple CLs and multiple CDs).
+        # Standard use case implies Single Series.
+        
+        x = item['aoa']
+        y_cl = item['C_L']
+        y_cd = item['C_D']
+        
+        # Simple validity check
+        mask_cl = ~np.isnan(y_cl)
+        mask_cd = ~np.isnan(y_cd)
+        valid_mask = mask_cl & mask_cd
+        
+        if not np.any(valid_mask): continue
+        has_data = True
+        
+        label = item['style']['label']
+        if len(plot_items) > 1:
+            cl_label = f"{label} ($C_L$)"
+            cd_label = f"{label} ($C_D$)"
+        else:
+            cl_label = "$C_L$ (Lift)"
+            cd_label = "$C_D$ (Drag)"
+            
+        # Plot CL
+        ax1.plot(x[valid_mask], y_cl[valid_mask], color=color_cl, marker='o', 
+                 linestyle='-', linewidth=2, markersize=6, label=cl_label, alpha=0.9)
+        
+        # Plot CD
+        ax2.plot(x[valid_mask], y_cd[valid_mask], color=color_cd, marker='s', 
+                 linestyle='--', linewidth=2, markersize=6, label=cd_label, alpha=0.9)
+                 
+    if not has_data:
+        plt.close()
+        return
+
+    ax1.set_xlabel('Angle of Attack $\\alpha$ [deg]')
+    ax1.set_ylabel('Lift Coefficient ($C_L$)', color=color_cl, fontweight='bold')
+    ax1.tick_params(axis='y', labelcolor=color_cl)
+    
+    ax2.set_ylabel('Drag Coefficient ($C_D$)', color=color_cd, fontweight='bold')
+    ax2.tick_params(axis='y', labelcolor=color_cd)
+    
+    plt.title(f'{title_prefix} - Combined $C_L$ & $C_D$', pad=20)
+    
+    # Combine legends
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left', frameon=True, fancybox=True, framealpha=0.9)
+    
+    plt.tight_layout()
+    
+    clean_prefix = "".join([c for c in title_prefix if c.isalnum() or c in (' ', '.', '_', '-')]).strip().replace(' ', '_')
+    plot_path = output_dir / f"{clean_prefix}_Combined_CL_CD.png"
+    try:
+        plt.savefig(plot_path, bbox_inches='tight')
+        # print(f"    [OK] Generated dual-axis plot: {plot_path.name}")
+    except Exception as e:
+        print(f"    [WARN] Failed to save dual-axis plot {plot_path.name}: {e}")
+    plt.close()
+
+def _plot_quad_aerodynamics(plot_items, output_dir, title_prefix, max_cov_threshold=None):
+    """Generates a 2x2 summary plot: CL, CD, L/D, and Polar."""
+    set_plot_style()
+    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle(f'{title_prefix} - Aerodynamic Summary', fontsize=16, fontweight='bold', y=0.98)
+    
+    # Subplot mapping
+    ax_cl = axs[0, 0]
+    ax_cd = axs[0, 1]
+    ax_eff = axs[1, 0]
+    ax_polar = axs[1, 1]
+    
+    # Track if we have any valid data
+    has_data = False
+    
+    # Pre-calculate derived metrics just in case
+    # Assuming _calculate_derived_aerodynamics was called before, but safe to check
+    _calculate_derived_aerodynamics(plot_items)
+    
+    # Loop through items and plot on all 4 axes
+    for item in plot_items:
+        # Get data
+        x_aoa = item['aoa']
+        y_cl = item['C_L']
+        y_cd = item['C_D']
+        y_eff = item.get('CL_CD')
+        
+        # Style
+        s = item['style']
+        lbl = s['label']
+        col = s['color']
+        mrk = s['marker']
+        
+        # Determine valid mask based on COV if needed (or just valid data)
+        # Assuming simple valid check for now
+        mask_cl = ~np.isnan(y_cl)
+        if np.any(mask_cl):
+            has_data = True
+            ax_cl.plot(x_aoa[mask_cl], y_cl[mask_cl], label=lbl, color=col, marker=mrk,
+                       linestyle='-', linewidth=2, markersize=6, alpha=0.8)
+
+        mask_cd = ~np.isnan(y_cd)
+        if np.any(mask_cd):
+            ax_cd.plot(x_aoa[mask_cd], y_cd[mask_cd], label=lbl, color=col, marker=mrk,
+                       linestyle='-', linewidth=2, markersize=6, alpha=0.8)
+                       
+        if y_eff is not None:
+            mask_eff = ~np.isnan(y_eff)
+            if np.any(mask_eff):
+                ax_eff.plot(x_aoa[mask_eff], y_eff[mask_eff], label=lbl, color=col, marker=mrk,
+                           linestyle='-', linewidth=2, markersize=6, alpha=0.8)
+                           
+        # Drag Polar (CL vs CD)
+        mask_polar = (~np.isnan(y_cl)) & (~np.isnan(y_cd))
+        if np.any(mask_polar):
+            # Sort by CD for cleaner line? Usually Polar is sorted by CL or something monotonic
+            # Plotting as scatter + line based on index order (which is AoA order) works for polars usually
+            ax_polar.plot(y_cd[mask_polar], y_cl[mask_polar], label=lbl, color=col, marker=mrk,
+                          linestyle='-', linewidth=2, markersize=6, alpha=0.8)
+
+    if not has_data:
+        plt.close()
+        return
+
+    # Titles and Labels
+    ax_cl.set_title("Lift Coefficient ($C_L$)", fontweight='bold')
+    ax_cl.set_xlabel(r"Angle of Attack $\alpha$ [deg]")
+    ax_cl.set_ylabel(r"$C_L$")
+    ax_cl.grid(True, linestyle='--', alpha=0.6)
+    
+    ax_cd.set_title("Drag Coefficient ($C_D$)", fontweight='bold')
+    ax_cd.set_xlabel(r"Angle of Attack $\alpha$ [deg]")
+    ax_cd.set_ylabel(r"$C_D$")
+    ax_cd.grid(True, linestyle='--', alpha=0.6)
+    
+    ax_eff.set_title("Lift-to-Drag Ratio ($C_L/C_D$)", fontweight='bold')
+    ax_eff.set_xlabel(r"Angle of Attack $\alpha$ [deg]")
+    ax_eff.set_ylabel(r"$C_L/C_D$")
+    ax_eff.grid(True, linestyle='--', alpha=0.6)
+    
+    ax_polar.set_title("Drag Polar", fontweight='bold')
+    ax_polar.set_xlabel(r"Drag Coefficient $C_D$")
+    ax_polar.set_ylabel(r"Lift Coefficient $C_L$")
+    ax_polar.grid(True, linestyle='--', alpha=0.6)
+
+    # Global Legend (using handles from first plot)
+    handles, labels = ax_cl.get_legend_handles_labels()
+    if labels:
+        fig.legend(handles, labels, loc='lower center', ncol=min(len(labels), 5), 
+                   bbox_to_anchor=(0.5, 0.02), frameon=True, fancybox=True, shadow=True)
+    
+    plt.tight_layout()
+    plt.subplots_adjust(bottom=0.15, top=0.92, hspace=0.3, wspace=0.25) # Adjust spacing
+    
+    clean_prefix = "".join([c for c in title_prefix if c.isalnum() or c in (' ', '.', '_', '-')]).strip().replace(' ', '_')
+    plot_path = output_dir / f"{clean_prefix}_Aerodynamic_Summary.png"
+    try:
+        plt.savefig(plot_path, bbox_inches='tight')
+    except Exception as e:
+        print(f"    [WARN] Failed to save quad summary plot {plot_path.name}: {e}")
     plt.close()

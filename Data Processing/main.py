@@ -17,9 +17,9 @@ import numpy as np
 import pandas as pd
 from cfd_functions import (
     load_lift_drag_data, compute_statistics, extract_aoa_number,
-    analyze_convergence, plot_convergence_analysis, create_data_summary_sheet, create_turbulence_comparison_sheet,
+    analyze_convergence, plot_convergence_analysis, plot_convergence_summary, create_data_summary_sheet, create_turbulence_comparison_sheet,
     create_version_comparison_sheet, create_coefficients_sheet, create_optimized_statistics_sheet, apply_excel_formatting,
-    create_coefficient_graphs, apply_data_manipulations, get_simulation_family_name
+    create_coefficient_graphs, create_expanded_graphs, apply_data_manipulations, get_simulation_family_name
 )
 from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS, DATA_MANIPULATIONS, NAMING_SCHEMAS, ACTIVE_SCHEMA
 
@@ -36,37 +36,47 @@ DATA_SOURCES = [
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.G"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.5.G"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.6.G"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.2"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.3.1"),
 
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.2"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.3.1"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1.G"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1.NG"),
+
 
     #Path(r"C:\Path\To\Newer\Reruns"), 
 ]
-OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\Processed Data\Comparisons\2414_006_004\Turbulence_Comparison\4.3.1.2_4.3.2.1_4.3.3.1")
+OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\Processed Data\Singular_Data\4.3.2.1.NG")
 
 # Configuration Extraction Method
 CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
 
 # Comparison Mode
-# Options: 'default', 'turbulence', 'grid', 'version'
+# Options: 'default', 'turbulence', 'grid', 'version', 'expanded'
 # - default: Standard behavior (highest version wins).
 # - turbulence: Groups by Geometry.Mesh to compare turbulence models side-by-side.
 # - grid: Groups by Geometry.Mesh.Turbulence to compare Grid vs No Grid side-by-side.
 # - version: Groups by Geometry.Mesh.Turbulence.Grid to compare versions (V1, V2...) side-by-side.
+# - expanded: Groups by Geometry.Mesh to calculate and compare Grid Efficiency Ratios (L/D Improvement) across turbulence models.
 COMPARISON_MODE = 'turbulence'
+
+# AoA Filter: Set to a list of angles (e.g., [0, 2, 4]) to only process those AoAs.
+# Set to [] or None to process all.
+AOA_FILTER = []
 
 # Processing Parameters
 NUM_ITERATIONS = 150  # Number of last iterations to use for statistics
 RUN_CONVERGENCE_ANALYSIS = True  # Set to False to skip convergence analysis
-CONVERGENCE_MAX_TRIM = 0.8  # Maximum fraction of data to trim (0.8 = 80%)
-CONVERGENCE_NUM_TESTS = 20  # Number of trim amounts to test
+CONVERGENCE_MAX_TRIM = 0.9  # Maximum fraction of data to trim (0.8 = 80%)
+CONVERGENCE_NUM_TESTS = 25  # Number of trim amounts to test
+GRAPH_MAX_COV = 15  # Data points with COV > 5% will be excluded from graphs
 
 # Coefficient Calculation Parameters
-SPAN = 0.85344
-CHORD = 0.1
-AIR_DENSITY = 1.225
-VELOCITY = 24.38
+SPAN = 0.85344 # [m] Test width is 2.8 feet
+CHORD = 0.3048 # [m] Test chord is 1 foot
+AIR_DENSITY = 1.225 # [kg/m^3] Standard sea level air density
+VELOCITY = 24.384 # [m/s] Test velocity is 80 ft/s
 
 REFERENCE_AREA = SPAN * CHORD
 DYNAMIC_PRESSURE = 0.5 * AIR_DENSITY * VELOCITY**2
@@ -99,6 +109,20 @@ def main():
         print(f"  - {src}")
 
     all_data, validation_report = load_lift_drag_data(DATA_SOURCES, CONFIG_EXTRACTION_METHOD, POSITION_MAP, VALUE_MAPPINGS, comparison_mode=COMPARISON_MODE)
+    
+    # Apply Quick AoA Filter if set
+    if AOA_FILTER:
+        print(f"\n⚡ Applying AoA Filter: {AOA_FILTER}")
+        initial_count = len(all_data)
+        filtered_data = {}
+        for key, value in all_data.items():
+            # key is (config, aoa_str)
+            # We need to extract number from aoa_str (e.g. "AoA_0" -> 0)
+            if extract_aoa_number(key[1]) in AOA_FILTER:
+                 filtered_data[key] = value
+        
+        all_data = filtered_data
+        print(f"   -> Filtered down to {len(all_data)} simulations (removed {initial_count - len(all_data)})")
     
     # Print validation report
     print("\n" + "-" * 100)
@@ -264,6 +288,10 @@ def main():
                 for warning in drag_results.get('warnings', []):
                     print(f"       {warning}")
 
+        # Create Summary Charts
+        print("\n  Generating convergence summary plots...")
+        plot_convergence_summary(convergence_results, all_data, OUTPUT_DIR, comparison_mode=COMPARISON_MODE)
+        
         print(f"\n✓ Convergence analysis complete")
         
         # Export convergence analysis text file
@@ -389,7 +417,11 @@ def main():
     create_coefficients_sheet(wb, all_data, NUM_ITERATIONS, convergence_results, Q_TIMES_A)
     
     version_sheet_created = False
-    if COMPARISON_CONFIGS or COMPARISON_MODE == 'version':
+    # Only use COMPARISON_CONFIGS if explicitly in 'version' mode
+    # For 'default', 'turbulence', 'grid', 'expanded', we rely on their specific logic.
+    should_run_version_comparison = (COMPARISON_MODE == 'version')
+    
+    if should_run_version_comparison:
         print("  Creating sheet: Version_Comparison")
         version_sheet_created = create_version_comparison_sheet(
             wb,
@@ -468,7 +500,12 @@ def main():
     
     # Create graphs
     print("\nGenerating graphs...")
-    create_coefficient_graphs(all_data, coefficient_data, OUTPUT_DIR, POSITION_MAP, VALUE_MAPPINGS, comparison_mode=COMPARISON_MODE)
+    create_coefficient_graphs(all_data, coefficient_data, OUTPUT_DIR, POSITION_MAP, VALUE_MAPPINGS, 
+                              comparison_mode=COMPARISON_MODE, max_cov_threshold=GRAPH_MAX_COV)
+
+    # Create Expanded Graphs (Efficiency Ratio)
+    print("Generating expanded graphs...")
+    create_expanded_graphs(coefficient_data, OUTPUT_DIR, comparison_mode=COMPARISON_MODE, max_cov_threshold=GRAPH_MAX_COV)
     
     graphs_dir = OUTPUT_DIR / "coefficient_graphs"
     print(f"\n✓ Graphs saved to: {graphs_dir}")

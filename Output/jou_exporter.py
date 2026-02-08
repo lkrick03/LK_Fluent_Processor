@@ -19,27 +19,34 @@ from datetime import datetime
 # ============================================================
 
 # OUTPUT SETTINGS
-export_filename = "4.3.2.1.G.17_20"  # Filename (no .jou needed)
-export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Data_Prepartation\HPC\4.3.2.1.G_setup"
+export_filename = "4.3.2.2.G.5_10_0.5_11_20_1"  # Filename (no .jou needed)
+export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Data_Prepartation\HPC\4.3.2.2.G_setup"
 
 # --- 1. Angle of Attack (AoA) Settings ---
-AOA_MODE = "List"  # Options: "Range", "List"
+AOA_MODE = "MultiRange"  # Options: "Range", "List", "MultiRange"
 
 # If "Range":
-AOA_START = 5
-AOA_END = 20
-AOA_STEP = 1
+AOA_START = 0
+AOA_END = 10
+AOA_STEP = 1.0
+
+# If "MultiRange":
+# List of tuples: (start, end, step)
+AOA_RANGES = [
+    (5, 10, 0.5),    # 0 to 5 with step 1
+    (11, 20, 1)  # 5.5 to 10 with step 0.5
+]
 
 # If "List":
-AOA_LIST = [17, 18, 19, 20]
+AOA_LIST = [0, 1, 2, 3, 4]
 
 # --- 2. Simulation Parameters ---
 V_MAG = 24.38       # Velocity magnitude (m/s)
-BASE_OUTPUT_DIR = "/home/ljcrick/directories/4.3.2.1.G"
-OUTPUT_FILENAME_BASE = "4.3.2.1.G"  # Base name for output files
+BASE_OUTPUT_DIR = "/home/ljcrick/directories/4.3.2.2.G"
+OUTPUT_FILENAME_BASE = "4.3.2.2.G"  # Base name for output files
 DRAG_REPORT_FILE = "drag-rfile"
 LIFT_REPORT_FILE = "lift-rfile"
-ITERATIONS = 2400  # Number of iterations to run
+ITERATIONS = 1800  # Number of iterations to run
 TEST_MODE = False   # If True: Updates BCs but skips Solving & Saving
 
 # --- 3. Define Zone Groups ---
@@ -107,10 +114,6 @@ ZONE_RULES = [
 INLET_TUI_SETTINGS = "no yes yes no 0 yes no ~a no ~a no ~a no no yes 0.05 10"
 OUTLET_TUI_SETTINGS = "yes no 0 no yes no no yes 5 10 yes no no no"
 
-# ============================================================
-# FUNCTIONS - DO NOT MODIFY BELOW THIS LINE
-# ============================================================
-
 def format_scheme_list(py_list):
     """Format a Python list as a Scheme list."""
     if not py_list:
@@ -126,6 +129,16 @@ def generate_journal_content():
     if AOA_MODE == "Range":
         aoa_values = list(np.arange(AOA_START, AOA_END + 0.0001, AOA_STEP))
         config_note = f"Range: {AOA_START} to {AOA_END} step {AOA_STEP}"
+    elif AOA_MODE == "MultiRange":
+        val_list = []
+        for r_start, r_end, r_step in AOA_RANGES:
+            # Generate range, round to 4 decimals to avoid float duplication
+            vals = np.arange(r_start, r_end + 0.0001, r_step)
+            val_list.extend([round(v, 4) for v in vals])
+        
+        # Remove duplicates and sort
+        aoa_values = sorted(list(set(val_list)))
+        config_note = f"MultiRange: {AOA_RANGES}"
     else:
         aoa_values = AOA_LIST
         config_note = f"List: {AOA_LIST}"
