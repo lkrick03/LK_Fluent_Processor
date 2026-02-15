@@ -1,0 +1,81 @@
+graph TD
+    %% Styling
+    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef output fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef error fill:#ffebee,stroke:#c62828,stroke-width:2px;
+
+    start([Start: main.py]) --> input[Define DATA_SOURCES]
+    input --> load_phase[Part 1: Load & Validate Data]
+    
+    subgraph Data_Loading_Phase [Step 1: Data Loading & Validation]
+        direction TB
+        load_phase --> scan[Scan Folders]
+        scan --> validate{Validate AoA Folder}
+        
+        validate -- Invalid --> log_error[Log Issue & Skip]
+        log_error --> report[Update Validation Report]
+        report:::error
+        
+        validate -- Valid --> parse[Parse Config & AoA]
+        parse --> read[Read Lift/Drag Files]
+        read --> correct[Apply AoA Correction]
+        correct --> store[Store in all_data]
+        store:::process
+    end
+    
+    store --> check_filter{AoA Filter Active?}
+    check_filter -- Yes --> filter[Filter Data]
+    check_filter -- No --> summary[Print Validation Report]
+    filter --> summary
+    
+    summary --> check_conv{Run Convergence?}
+    class check_conv decision
+    
+    check_conv -- No --> excel_phase
+    check_conv -- Yes --> conv_phase[Part 2: Convergence Analysis]
+    
+    subgraph Convergence_Phase [Step 2: Convergence Analysis]
+        direction TB
+        conv_phase --> trim_loop[Test Trim 0% to 80%]
+        trim_loop --> stats[Calc Mean, StdDev, COV]
+        stats --> score[Calculate Confidence Score]
+        score --> recommend[Select Optimal Trim]
+        recommend --> verify{Check Safety Floor}
+        
+        verify -- Safe --> save_conv[Save Results]
+        verify -- Unsafe --> fallback[Use Conservative Trim]
+        fallback --> save_conv
+        
+        save_conv --> plot_conv[Generate Convergence Plots]
+        plot_conv:::output
+    end
+    
+    save_conv --> excel_phase[Part 3: Excel Generation]
+    
+    subgraph Excel_Phase [Step 3: Excel Outputs]
+        direction TB
+        excel_phase --> sheet1[Sheet: Data Summary]
+        sheet1 --> sheet2[Sheet: Turbulence Comparison]
+        sheet2 --> sheet3[Sheet: Coefficients]
+        sheet3 --> sheet4{Version Comparison?}
+        sheet4 -- Yes --> sheet5[Sheet: Version Comp]
+        sheet4 -- No --> sheet6{Convergence Run?}
+        sheet5 --> sheet6
+        sheet6 -- Yes --> sheet7[Sheet: Optimized Stats]
+        sheet6 -- No --> save_excel[Save Workbook]
+        sheet7 --> save_excel
+    end
+    
+    save_excel:::output --> graph_phase[Part 4: Graph Generation]
+    
+    subgraph Graph_Phase [Step 4: Coefficient Graphs]
+        direction TB
+        graph_phase --> calc_coeff[Calculate C_L, C_D]
+        calc_coeff --> plot_basic[Plot C_L/C_D vs AoA]
+        plot_basic --> plot_polar[Plot Drag Polar]
+        plot_polar --> plot_effic[Plot Efficiency L/D]
+        plot_effic --> save_graphs[Save Plots to Disk]
+    end
+    
+    save_graphs:::output --> finish([End Workflow])

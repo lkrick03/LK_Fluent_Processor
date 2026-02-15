@@ -19,7 +19,8 @@ from cfd_functions import (
     load_lift_drag_data, compute_statistics, extract_aoa_number,
     analyze_convergence, plot_convergence_analysis, plot_convergence_summary, create_data_summary_sheet, create_turbulence_comparison_sheet,
     create_version_comparison_sheet, create_coefficients_sheet, create_optimized_statistics_sheet, apply_excel_formatting,
-    create_coefficient_graphs, create_expanded_graphs, apply_data_manipulations, get_simulation_family_name
+    create_coefficient_graphs, create_expanded_graphs, apply_data_manipulations, get_simulation_family_name,
+    read_fluent_xy, plot_xy_series
 )
 from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS, DATA_MANIPULATIONS, NAMING_SCHEMAS, ACTIVE_SCHEMA
 
@@ -47,7 +48,7 @@ DATA_SOURCES = [
 
     #Path(r"C:\Path\To\Newer\Reruns"), 
 ]
-OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\Processed Data\Singular_Data\4.3.2.1.NG")
+OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\Processed_Data\Singular_Data\4.3.2.1.NG")
 
 # Configuration Extraction Method
 CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
@@ -59,18 +60,22 @@ CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
 # - grid: Groups by Geometry.Mesh.Turbulence to compare Grid vs No Grid side-by-side.
 # - version: Groups by Geometry.Mesh.Turbulence.Grid to compare versions (V1, V2...) side-by-side.
 # - expanded: Groups by Geometry.Mesh to calculate and compare Grid Efficiency Ratios (L/D Improvement) across turbulence models.
-COMPARISON_MODE = 'turbulence'
+COMPARISON_MODE = 'default'
 
 # AoA Filter: Set to a list of angles (e.g., [0, 2, 4]) to only process those AoAs.
 # Set to [] or None to process all.
 AOA_FILTER = []
+
+# Path to folder containing .xy files (if not in source folders)
+# Set to None to only search in source folders
+XY_DATA_SOURCE_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1.NG\y_plus_pressure_data")
 
 # Processing Parameters
 NUM_ITERATIONS = 150  # Number of last iterations to use for statistics
 RUN_CONVERGENCE_ANALYSIS = True  # Set to False to skip convergence analysis
 CONVERGENCE_MAX_TRIM = 0.9  # Maximum fraction of data to trim (0.8 = 80%)
 CONVERGENCE_NUM_TESTS = 25  # Number of trim amounts to test
-GRAPH_MAX_COV = 15  # Data points with COV > 5% will be excluded from graphs
+GRAPH_MAX_COV = 50  # Data points with COV > 5% will be excluded from graphs
 
 # Coefficient Calculation Parameters
 SPAN = 0.85344 # [m] Test width is 2.8 feet
@@ -81,6 +86,11 @@ VELOCITY = 24.384 # [m/s] Test velocity is 80 ft/s
 REFERENCE_AREA = SPAN * CHORD
 DYNAMIC_PRESSURE = 0.5 * AIR_DENSITY * VELOCITY**2
 Q_TIMES_A = DYNAMIC_PRESSURE * REFERENCE_AREA
+
+# Reynolds Number Calculation
+VISCOSITY = 1.7894e-5  # [kg/(m·s)] Dynamic viscosity of air at sea level (15°C)
+REYNOLDS_NUMBER = (AIR_DENSITY * VELOCITY * CHORD) / VISCOSITY
+print(f"Reynolds Number: {REYNOLDS_NUMBER:,.0f}")
 
 # ==================== MAIN WORKFLOW ====================
 
@@ -490,6 +500,7 @@ def main():
         coefficient_data[(config, aoa)] = {
             'turbulence_model': data['turbulence_model'],
             'aoa_degrees': extract_aoa_number(aoa),
+            'grid': data.get('grid', 'Unknown'), # Pass grid status for expanded graphs
             'C_L': C_L,
             'C_D': C_D,
             'C_L_std': C_L_std,
@@ -512,6 +523,111 @@ def main():
     print("✓ Organization: coefficient_graphs / turbulence_model / config /")
     print("✓ Each config contains: C_L_vs_AoA.png, C_D_vs_AoA.png, C_L_C_D_Combined.png")
     
+    # ==================== PART 5: GENERATING EXPORTED PLOTS (Cp, Y+) ====================
+    print("\n" + "=" * 100)
+    print("PART 5: GENERATING EXPORTED PLOTS (Cp, Y+)")
+    print("=" * 100)
+    
+    plot_counts = {"Cp": 0, "Y+": 0}
+    
+    for (config, aoa), data in all_data.items():
+        source_dir = data.get('source_dir')
+        if not source_dir:
+            continue
+        
+        print(f"\n  Searching for XY files: config={config}, aoa={aoa}")
+        print(f"    source_dir: {source_dir}")
+            
+        # Search for .xy files in the source folder
+        all_xy_files = list(source_dir.glob("*.xy"))
+        print(f"    Found {len(all_xy_files)} .xy files in source_dir")
+        
+        # Also check 'Exported_Plots' subdir if it exists (common output location)
+        exported_subdir = source_dir / "Exported_Plots"
+        if exported_subdir.exists():
+            all_xy_files.extend(list(exported_subdir.glob("*.xy")))
+        
+        # Check sibling 'y_plus_pressure_data' folder (next to AoA folders)
+        sibling_xy_dir = source_dir.parent / "y_plus_pressure_data"
+        if sibling_xy_dir.exists():
+            sibling_files = list(sibling_xy_dir.glob("*.xy"))
+            print(f"    Found {len(sibling_files)} .xy files in sibling y_plus_pressure_data/")
+            all_xy_files.extend(sibling_files)
+        else:
+            print(f"    Sibling dir not found: {sibling_xy_dir}")
+            
+        # Also check explicit XY data folder if configured
+        if XY_DATA_SOURCE_DIR and XY_DATA_SOURCE_DIR.exists():
+            explicit_files = list(XY_DATA_SOURCE_DIR.glob("*.xy"))
+            print(f"    Found {len(explicit_files)} .xy files in XY_DATA_SOURCE_DIR")
+            all_xy_files.extend(explicit_files)
+        elif XY_DATA_SOURCE_DIR:
+            print(f"    WARNING: XY_DATA_SOURCE_DIR does not exist: {XY_DATA_SOURCE_DIR}")
+        
+        # Deduplicate (sibling and explicit might overlap)
+        all_xy_files = list(set(all_xy_files))
+        print(f"    Total unique .xy files: {len(all_xy_files)}")
+            
+        # Robust filtering helper
+        aoa_num = extract_aoa_number(aoa)
+        
+        def is_match(f):
+            if config not in f.name:
+                return False
+            remainder = f.name.replace(config, "")
+            parts = remainder.replace('_', '.').replace('-', '.').split('.')
+            return str(aoa_num) in parts
+
+        # Filter for Cp and Y+
+        cp_files = [f for f in all_xy_files if ('cp' in f.name.lower() or 'pressure' in f.name.lower()) and is_match(f)]
+        yplus_files = [f for f in all_xy_files if ('yplus' in f.name.lower() or 'y-plus' in f.name.lower() or 'y_plus' in f.name.lower()) and is_match(f)]
+        
+        if cp_files or yplus_files:
+            print(f"    Matched: {len(cp_files)} Cp files, {len(yplus_files)} Y+ files")
+            for f in cp_files: print(f"      Cp: {f.name}")
+            for f in yplus_files: print(f"      Y+: {f.name}")
+        
+        # Setup output directories
+        base_plot_dir = OUTPUT_DIR / "Extra_Plots"
+        cp_out_dir = base_plot_dir / "pressure_coefficient" / data['turbulence_model'] / config
+        yplus_out_dir = base_plot_dir / "y_plus" / data['turbulence_model'] / config
+        
+        # Process Cp Files
+        for f in cp_files:
+            # (Already filtered by is_match)
+            cp_out_dir.mkdir(parents=True, exist_ok=True)
+            df = read_fluent_xy(f)
+            if not df.empty:
+                output_path = cp_out_dir / f"Cp_{config}_{aoa}.png"
+                plot_xy_series(
+                    df, 
+                    title=f"Pressure Coefficient - {config} - {aoa}",
+                    xlabel="X Position (m)",
+                    ylabel="Pressure Coefficient ($C_p$)",
+                    output_path=output_path,
+                    invert_y=True
+                )
+                plot_counts["Cp"] += 1
+                
+        # Process Y+ Files
+        for f in yplus_files:
+            # (Already filtered by is_match)
+            yplus_out_dir.mkdir(parents=True, exist_ok=True)
+            df = read_fluent_xy(f)
+            if not df.empty:
+                output_path = yplus_out_dir / f"Yplus_{config}_{aoa}.png"
+                plot_xy_series(
+                    df,
+                    title=f"Wall Y+ Distribution - {config} - {aoa}",
+                    xlabel="X Position (m)",
+                    ylabel="Wall Y+",
+                    output_path=output_path,
+                    invert_y=False
+                )
+                plot_counts["Y+"] += 1
+
+    print(f"\n✓ Generated {plot_counts['Cp']} Cp plots and {plot_counts['Y+']} Y+ plots")
+    print(f"✓ Saved to: {OUTPUT_DIR / 'Extra_Plots'}")    
     # ==================== FINAL SUMMARY ====================
     print("\n" + "=" * 100)
     print("WORKFLOW COMPLETE!")

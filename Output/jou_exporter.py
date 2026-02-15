@@ -19,11 +19,11 @@ from datetime import datetime
 # ============================================================
 
 # OUTPUT SETTINGS
-export_filename = "4.3.2.2.G.5_10_0.5_11_20_1"  # Filename (no .jou needed)
-export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Data_Prepartation\HPC\4.3.2.2.G_setup"
+export_filename = "4.6.1.1.NG.all"  # Filename (no .jou needed)
+export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Data_Prepartation\HPC\4.6.1.1.NG_setup"
 
 # --- 1. Angle of Attack (AoA) Settings ---
-AOA_MODE = "MultiRange"  # Options: "Range", "List", "MultiRange"
+AOA_MODE = "List"  # Options: "Range", "List", "MultiRange"
 
 # If "Range":
 AOA_START = 0
@@ -33,20 +33,20 @@ AOA_STEP = 1.0
 # If "MultiRange":
 # List of tuples: (start, end, step)
 AOA_RANGES = [
-    (5, 10, 0.5),    # 0 to 5 with step 1
-    (11, 20, 1)  # 5.5 to 10 with step 0.5
+    (5, 10, 0.5),    # 5 to 10 with step 0.5
+    (11, 20, 1)  # 11 to 20 with step 1
 ]
 
 # If "List":
-AOA_LIST = [0, 1, 2, 3, 4]
+AOA_LIST = [6, 7, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19,]
 
 # --- 2. Simulation Parameters ---
-V_MAG = 24.38       # Velocity magnitude (m/s)
-BASE_OUTPUT_DIR = "/home/ljcrick/directories/4.3.2.2.G"
-OUTPUT_FILENAME_BASE = "4.3.2.2.G"  # Base name for output files
+V_MAG = 24.38      # Velocity magnitude (m/s)
+BASE_OUTPUT_DIR = "/home/ljcrick/directories/4.6.1.1.NG"
+OUTPUT_FILENAME_BASE = "4.6.1.1.NG"  # Base name for output files
 DRAG_REPORT_FILE = "drag-rfile"
 LIFT_REPORT_FILE = "lift-rfile"
-ITERATIONS = 1800  # Number of iterations to run
+ITERATIONS = 1200  # Number of iterations to run
 TEST_MODE = False   # If True: Updates BCs but skips Solving & Saving
 
 # --- 3. Define Zone Groups ---

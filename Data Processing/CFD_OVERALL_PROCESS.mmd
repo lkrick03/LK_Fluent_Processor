@@ -1,0 +1,50 @@
+%%{init: {'theme': 'default', 'themeVariables': { 'background': '#ffffff', 'edgeLabelBackground':'#ffffff' }}}%%
+graph TD
+    %% Define Colorful Node Styles
+    classDef pre fill:#e3f2fd,stroke:#1565c0,color:#0d47a1,stroke-width:2px;
+    classDef solver fill:#fff3e0,stroke:#ef6c00,color:#e65100,stroke-width:2px;
+    classDef post fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20,stroke-width:2px;
+    classDef terminal fill:#f5f5f5,stroke:#333333,color:#333333,stroke-width:2px;
+
+    %% Subgraph Styling
+    style Init fill:#ffffff,stroke-width:0px,color:#000000;
+    style PreProcessing fill:#ffffff,stroke-width:0px,color:#000000;
+    style Solving fill:#ffffff,stroke-width:0px,color:#000000;
+    style PostProcessing fill:#ffffff,stroke-width:0px,color:#000000;
+
+    subgraph Init [Project Initialization]
+        start([Problem Definition]):::terminal
+    end
+
+    start --> cad[CAD Generation]:::pre
+    
+    subgraph PreProcessing [1. Pre-Processing]
+        direction LR
+        cad --> mesh[Mesh Generation]:::pre
+        mesh --> bc[Boundary Conditions]:::pre
+        bc --> setup[Solver Configuration]:::pre
+    end
+
+    setup --> fluent[Fluent Solver Execution]:::solver
+
+    subgraph Solving [2. Solving]
+        direction TB
+        fluent --> monit[Monitor Residuals]:::solver
+        monit --> check{Converged?}:::solver
+        check -- No --> fluent
+        check -- Yes --> export[Export Force Data]:::solver
+    end
+
+    export --> data_proc[Python Data Processing]:::post
+
+    subgraph PostProcessing [3. Post-Processing]
+        direction LR
+        data_proc --> conv_anal[Convergence Analysis]:::post
+        conv_anal --> excel[Excel Statistics]:::post
+        excel --> plots[Coefficient Graphs]:::post
+    end
+
+    plots --> report([Thesis / Results Presentation]):::terminal
+
+    %% Layout Links
+    class start,report terminal;

@@ -77,6 +77,162 @@ ACADEMIC_MARKERS = ['o', 's', '^', 'D', 'v', 'p', 'P', '*', 'h', 'X']
 
 # ==================== DATA VALIDATION FUNCTIONS ====================
 
+def read_fluent_xy(filepath):
+    """
+    Parses an ANSYS Fluent .xy file.
+    
+    Format:
+    (title "...")
+    (labels "..." "...")
+    ((xy/key/label "surface_name")
+    x1  y1
+    x2  y2
+    ...
+    )
+    ((xy/key/label "another_surface")
+    ...
+    )
+    
+    Returns:
+        pd.DataFrame with columns ['x', 'y'] containing all points combined.
+    """
+    data_points = []
+    
+    try:
+        with open(filepath, 'r') as f:
+            in_data_block = False
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Check for start of data block
+                if line.startswith('((xy/key/label'):
+                    in_data_block = True
+                    continue
+                
+                # Check for end of data block
+                if line == ')' and in_data_block:
+                    in_data_block = False
+                    continue
+                
+                # Check for headers or metadata to ignore
+                if line.startswith('('):
+                    continue
+                
+                # Parse data points if inside a block
+                if in_data_block:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        try:
+                            x = float(parts[0])
+                            y = float(parts[1])
+                            data_points.append({'x': x, 'y': y})
+                        except ValueError:
+                            continue
+                            
+        if not data_points:
+            return pd.DataFrame(columns=['x', 'y'])
+            
+        return pd.DataFrame(data_points)
+        
+    except Exception as e:
+        print(f"Error reading XY file {filepath}: {e}")
+        return pd.DataFrame(columns=['x', 'y'])
+
+
+def plot_xy_series(df, title, xlabel, ylabel, output_path, invert_y=False):
+    """
+    Generates and saves a single XY plot for Cp or Y+ data.
+    """
+    if df.empty:
+        print(f"  Warning: Empty dataframe for {title}, skipping plot.")
+        return
+
+    plt.figure(figsize=(10, 6))
+    
+    # Scatter plot for data points (handles disjoint surfaces better than line plot)
+    plt.plot(df['x'], df['y'], 'o', markersize=2, alpha=0.6, color='black', label='Data Points')
+    
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.xlabel(xlabel, fontsize=12)
+    plt.ylabel(ylabel, fontsize=12)
+    plt.grid(True, alpha=0.3)
+    
+    if invert_y:
+        plt.gca().invert_yaxis()
+        
+    plt.tight_layout()
+    try:
+        plt.savefig(output_path, dpi=300)
+    except Exception as e:
+        print(f"  Error saving plot to {output_path}: {e}")
+    plt.close()
+
+
+
+# ==================== PLOTTING CONSTANTS & STYLING ====================
+
+def set_plot_style():
+    """Configure professional academic plot styles for Matplotlib."""
+    plt.rcParams.update({
+        # High-res output
+        'figure.dpi': 300,
+        'savefig.dpi': 300,
+        
+        # Typography
+        'font.family': 'sans-serif',
+        'font.sans-serif': ['Arial', 'Helvetica', 'DejaVu Sans'],
+        'font.size': 11,
+        'axes.titlesize': 14,
+        'axes.titleweight': 'bold',
+        'axes.labelsize': 12,
+        'legend.fontsize': 10,
+        'xtick.labelsize': 10,
+        'ytick.labelsize': 10,
+        
+        # Grid & Ticks
+        'axes.grid': True,
+        'axes.grid.which': 'both',
+        'grid.alpha': 0.3,
+        'grid.linestyle': '--',
+        'grid.linewidth': 0.5,
+        'axes.axisbelow': True,
+        'xtick.direction': 'in',
+        'ytick.direction': 'in',
+        'xtick.top': True,
+        'ytick.right': True,
+        
+        # Spine aesthetics
+        'axes.linewidth': 1.0,
+        'axes.spines.top': True,
+        'axes.spines.right': True,
+        
+        # Markers & Lines
+        'lines.linewidth': 1.8,
+        'lines.markersize': 7,
+        'errorbar.capsize': 3,
+    })
+
+# Academic color palette
+ACADEMIC_COLORS = [
+    '#004c6d', # Dark blue
+    '#c33c54', # Muted red
+    '#254441', # Deep teal
+    '#ef7a1a', # Vibrant orange
+    '#432371', # Deep purple
+    '#7b9e89', # Sage green
+    '#d4a373', # Sandy brown
+    '#588157', # Forest green
+    '#ffb703', # Gold
+    '#fb8500', # Bright orange
+]
+
+ACADEMIC_MARKERS = ['o', 's', '^', 'D', 'v', 'p', 'P', '*', 'h', 'X']
+
+
+# ==================== DATA VALIDATION FUNCTIONS ====================
+
 def validate_aoa_folder(dirpath, filenames):
     """
     Validate that an AoA folder has required files with no duplicates or issues.
@@ -390,7 +546,17 @@ def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value
                  config_key = f"{winner['metadata']['config']} (v{winner['metadata']['version_sort_key']})"
                  key = (config_key, winner['metadata']['aoa'])
             else:
-                 key = (winner['metadata']['config'], winner['metadata']['aoa'])
+                 # Ensure config key reflects the unique identity (Grid vs No Grid)
+                 # If the config name doesn't already indicate the grid status, append it
+                 config_name = winner['metadata']['config']
+                 grid_status = winner['metadata'].get('grid', '')
+                 
+                 if 'With Grid' in grid_status and not ('.G' in config_name or '_G' in config_name):
+                     config_name = f"{config_name}.G"
+                 elif 'No Grid' in grid_status and not ('.NG' in config_name or '_NG' in config_name):
+                     config_name = f"{config_name}.NG"
+                 
+                 key = (config_name, winner['metadata']['aoa'])
             
             data_by_config_aoa[key]['lift'].extend(lift_data)
             data_by_config_aoa[key]['drag'].extend(drag_data)
@@ -407,6 +573,9 @@ def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value
                 
             for field in ['geometry', 'mesh', 'turbulence_model', 'version', 'grid']:
                 data_by_config_aoa[key][field] = safe_meta.get(field, 'N/A')
+            
+            # Store source directory for finding other files (like Cp.xy)
+            data_by_config_aoa[key]['source_dir'] = winner['dirpath']
                 
         except Exception as e:
             validation_report['skipped_folders'] += 1
@@ -578,8 +747,25 @@ def _read_force_file(filepath):
                     continue
     return data
 
-
 # ==================== STATISTICS FUNCTIONS ====================
+
+def format_sig_figs(value, n=3):
+    """Format a value to n significant figures."""
+    if value is None or value == 0:
+        return "0.00" if value == 0 else ""
+    try:
+        # Calculate the order of magnitude
+        mag = np.floor(np.log10(abs(value)))
+        # Scale the value, round it, and scale it back
+        factor = 10**(n - 1 - mag)
+        rounded = round(value * factor) / factor
+        # Formatting to ensure trailing zeros if needed
+        # Calculate number of decimals needed: n - (mag + 1)
+        decimals = int(max(0, n - (mag + 1)))
+        return f"{rounded:.{decimals}f}"
+    except (ValueError, OverflowError):
+        return str(value)
+
 
 def compute_statistics(data):
     """Calculate mean and coefficient of variation."""
@@ -636,18 +822,17 @@ def get_grouping_key(config_string, mode='default'):
         grid_part = parts[3]
     
     if mode == 'turbulence':
-        # Group by Geometry + Mesh only
-        # We want to see SST vs RNG vs RSM side-by-side
-        # So the "Family" name is just "4.3" (Geom.Mesh)
-        return f"{geom}.{mesh}"
+        # Group by Geometry + Mesh + Grid
+        # This ensures graph titles and comparison families include the grid type (NG/G)
+        return f"{geom}.{mesh}.{grid_part}" if grid_part else f"{geom}.{mesh}"
         
     elif mode == 'grid':
         # Group by Geometry + Mesh + Turbulence
-        return f"{parts[0]}.{parts[1]}.{parts[2]}" if len(parts) >= 3 else config_string
+        return f"{geom}.{mesh}.{turb}" if len(parts) >= 3 else config_string
     elif mode == 'expanded':
-         # Expanded mode behaves like turbulence mode (Group by Geom + Mesh)
-         # to allow comparing different turbulence models on efficiency plots.
-         return f"{parts[0]}.{parts[1]}" if len(parts) >= 2 else config_string
+         # Expanded mode: Group by Geom.Mesh ONLY (exclude grid)
+         # so that G and NG end up in the same family for pairing
+         return f"{geom}.{mesh}"
     elif mode == 'version':
         # Group by everything except version (which is key)
         # But actually for version comparison, we want the table to be "4.3.1.NG" 
@@ -1096,25 +1281,8 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         
         if comparison_mode == 'turbulence':
             # Label = Turbulence Model (e.g. SST, RNG)
-            # Family = Geom + Mesh
+            # Family = Geom + Mesh + Grid (now handled by get_grouping_key)
             sim_type = data['turbulence_model']
-            # If we are in turbulence mode, the base_config is e.g. "4.3"
-            # We might want to append Grid info if it's mixed?
-            # For now, let's assume same grid.
-            if data['grid'] != 'N/A' and data['grid'] != 'No Grid':
-                 # Append grid to base config if it's significant?
-                 # Actually, get_grouping_key('turbulence') returns "4.3"
-                 # If we have "4.3...NG" and "4.3...G", they will mix.
-                 # Let's fix get_grouping_key to include grid if comparisons should be strictly turbulence.
-                 # Actually, usually you compare turb models on SAME grid.
-                 # So "4.3.NG" is the family.
-                 base_config = f"{base_config}.{data['grid'].replace('Is Grid', 'G')}" 
-                 # This is tricky because raw grid string might be long.
-                 # Let's use the helper's robust logic:
-                 base_parts = config.split('.')
-                 grid_part = base_parts[4] if len(base_parts)>=5 else (base_parts[3] if len(base_parts)==4 and base_parts[3] in ['NG','G'] else '')
-                 if grid_part:
-                     base_config = f"{base_config}.{grid_part}"
 
         elif comparison_mode == 'grid':
             # Label = Grid (e.g. With Grid, No Grid)
@@ -1622,11 +1790,11 @@ def create_version_comparison_sheet(
                     fmt(drag_b, 3),
                     fmt_delta(drag_a, drag_b, 3),
                     fmt_delta(drag_a, drag_b, 2, percent=True),
-                    fmt(cl_a, 5),
-                    fmt(cl_b, 5),
+                    format_sig_figs(cl_a, 3),
+                    format_sig_figs(cl_b, 3),
                     fmt_delta(cl_a, cl_b, 2, percent=True),
-                    fmt(cd_a, 5),
-                    fmt(cd_b, 5),
+                    format_sig_figs(cd_a, 3),
+                    format_sig_figs(cd_b, 3),
                     fmt_delta(cd_a, cd_b, 2, percent=True),
                     count_a if count_a else "",
                     count_b if count_b else "",
@@ -1873,7 +2041,7 @@ def create_coefficients_sheet(wb, all_data, num_iterations, convergence_results,
         C_D_cov = (C_D_std / C_D * 100) if C_D != 0 else 0
         
         fill = row_fill_light if row % 2 == 0 else row_fill_white
-        values = [config, data['turbulence_model'], extract_aoa_number(aoa), f"{C_L:.6f}", f"{C_L_cov:.1f}", f"{C_D:.6f}", f"{C_D_cov:.1f}"]
+        values = [config, data['turbulence_model'], extract_aoa_number(aoa), format_sig_figs(C_L, 3), f"{C_L_cov:.1f}", format_sig_figs(C_D, 3), f"{C_D_cov:.1f}"]
         
         for col_idx, val in enumerate(values, 1):
             cell = ws.cell(row=row, column=col_idx, value=val)
@@ -2381,10 +2549,11 @@ def create_expanded_graphs(coefficient_data, output_dir, comparison_mode='expand
         turb = coeff.get('turbulence_model', 'Unknown')
         
         # Identify Grid Status
+        grid_meta = coeff.get('grid', 'Unknown')
         is_grid = False
-        if '.G' in config or 'With Grid' in str(coeff):
+        if '.G' in config or 'With Grid' in grid_meta or 'With Grid' in str(coeff):
             is_grid = True # It is the Grid version
-        if '.NG' in config or 'No Grid' in str(coeff):
+        if '.NG' in config or 'No Grid' in grid_meta or 'No Grid' in str(coeff):
             is_grid = False # It is the No Grid version
             
         # Store
@@ -2673,14 +2842,6 @@ def _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshol
     has_data = False
     
     for item in plot_items:
-        # Check validity similar to _plot_multi_series
-        # But here we are plotting ONE item usually (single mode) or multiple?
-        # The request said "for default comparison, in single graphs". 
-        # In single graphs mode, plot_items usually contains just one series.
-        # But the function structure supports multiple. We should probably just plot all of them if passed.
-        # However, dual axis with multiple series gets messy (multiple CLs and multiple CDs).
-        # Standard use case implies Single Series.
-        
         x = item['aoa']
         y_cl = item['C_L']
         y_cd = item['C_D']
@@ -2694,19 +2855,25 @@ def _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshol
         has_data = True
         
         label = item['style']['label']
-        if len(plot_items) > 1:
+        # If multiple series, use the assigned series color for both markers
+        # to distinguish simulations. Otherwise, use hardcoded CL/CD colors.
+        use_series_color = len(plot_items) > 1
+        c_cl = item['style']['color'] if use_series_color else color_cl
+        c_cd = item['style']['color'] if use_series_color else color_cd
+        
+        if use_series_color:
             cl_label = f"{label} ($C_L$)"
             cd_label = f"{label} ($C_D$)"
         else:
             cl_label = "$C_L$ (Lift)"
             cd_label = "$C_D$ (Drag)"
             
-        # Plot CL
-        ax1.plot(x[valid_mask], y_cl[valid_mask], color=color_cl, marker='o', 
+        # Plot CL (Solid)
+        ax1.plot(x[valid_mask], y_cl[valid_mask], color=c_cl, marker='o', 
                  linestyle='-', linewidth=2, markersize=6, label=cl_label, alpha=0.9)
         
-        # Plot CD
-        ax2.plot(x[valid_mask], y_cd[valid_mask], color=color_cd, marker='s', 
+        # Plot CD (Dashed)
+        ax2.plot(x[valid_mask], y_cd[valid_mask], color=c_cd, marker='s', 
                  linestyle='--', linewidth=2, markersize=6, label=cd_label, alpha=0.9)
                  
     if not has_data:

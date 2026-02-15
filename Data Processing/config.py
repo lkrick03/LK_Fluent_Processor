@@ -38,15 +38,16 @@ VALUE_MAPPINGS = {
         4: '2414_006_004',
     },
     'mesh': {
-        1: 'Coarse',
-        2: 'Medium',
-        3: 'Baseline',
-        4: 'ExtraFine',
-        5: 'Ultra',
+        1: 'OLD',
+        2: 'OLD',
+        3: 'Medium',
+        4: 'Adapted',
+        5: 'Unstrucutred',
+        6: 'Fine'
     },
     'turbulence': {
-        1: 'SST',
-        2: 'K-epsilon Standard',
+        1: 'K-Omega SST',
+        2: 'K-Epsilon Standard',
         3: 'RSM',
     },
     'version': {
