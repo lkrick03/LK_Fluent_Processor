@@ -55,7 +55,7 @@ class CFDApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("CFD Data Processing")
-        self.minsize(780, 820)
+        self.minsize(1100, 700)
         self.resizable(True, True)
 
         # Threading
@@ -70,13 +70,19 @@ class CFDApp(tk.Tk):
     # ─── UI Construction ─────────────────────────────────────────────────
 
     def _build_ui(self):
-        # Use a canvas + scrollbar so the whole form scrolls if the window
-        # is too small.
-        outer = ttk.Frame(self)
-        outer.pack(fill="both", expand=True)
+        # ── Top-level: horizontal PanedWindow ────────────────────────────
+        #    Left = config form + console,  Right = results viewer
+        main_pane = ttk.PanedWindow(self, orient="horizontal")
+        main_pane.pack(fill="both", expand=True)
 
-        canvas = tk.Canvas(outer, highlightthickness=0)
-        vscroll = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        # ═══════════════════════════════════════════════════════════════════
+        # LEFT PANE — scrollable configuration form + console
+        # ═══════════════════════════════════════════════════════════════════
+        left_outer = ttk.Frame(main_pane)
+        main_pane.add(left_outer, weight=1)
+
+        canvas = tk.Canvas(left_outer, highlightthickness=0)
+        vscroll = ttk.Scrollbar(left_outer, orient="vertical", command=canvas.yview)
         self._form = ttk.Frame(canvas)
 
         self._form.bind(
@@ -89,11 +95,18 @@ class CFDApp(tk.Tk):
         canvas.pack(side="left", fill="both", expand=True)
         vscroll.pack(side="right", fill="y")
 
-        # Enable mouse-wheel scrolling
+        # Mouse-wheel scrolling only when cursor is over the left pane
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        def _bind_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        def _unbind_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+
+        canvas.bind("<Enter>", _bind_mousewheel)
+        canvas.bind("<Leave>", _unbind_mousewheel)
 
         pad = {"padx": 8, "pady": 4}
         row = 0
@@ -103,7 +116,7 @@ class CFDApp(tk.Tk):
         lf.grid(row=row, column=0, columnspan=3, sticky="ew", **pad)
         row += 1
 
-        self.src_listbox = tk.Listbox(lf, height=5, selectmode="extended", width=90)
+        self.src_listbox = tk.Listbox(lf, height=4, selectmode="extended", width=55)
         self.src_listbox.pack(side="left", fill="both", expand=True, padx=4, pady=4)
 
         src_scroll = ttk.Scrollbar(lf, orient="vertical", command=self.src_listbox.yview)
@@ -122,7 +135,8 @@ class CFDApp(tk.Tk):
         row += 1
 
         self.output_var = tk.StringVar()
-        ttk.Entry(lf2, textvariable=self.output_var, width=80).pack(side="left", padx=4, pady=4, fill="x", expand=True)
+        ttk.Entry(lf2, textvariable=self.output_var, width=50).pack(
+            side="left", padx=4, pady=4, fill="x", expand=True)
         ttk.Button(lf2, text="Browse…", command=self._browse_output).pack(side="left", padx=4)
 
         # ── Section: Processing Options ──────────────────────────────────
@@ -159,7 +173,7 @@ class CFDApp(tk.Tk):
         row += 1
 
         self.aoa_var = tk.StringVar()
-        ttk.Entry(lf4, textvariable=self.aoa_var, width=60).pack(padx=4, pady=4, fill="x")
+        ttk.Entry(lf4, textvariable=self.aoa_var, width=40).pack(padx=4, pady=4, fill="x")
 
         # ── Section: Convergence Analysis ────────────────────────────────
         lf5 = ttk.LabelFrame(self._form, text="Convergence Analysis")
@@ -206,7 +220,6 @@ class CFDApp(tk.Tk):
         self.velocity_var = tk.StringVar()
         self.viscosity_var = tk.StringVar()
 
-        # (label, variable, grid_row, grid_col) — reference labels stored for later
         self._phys_default_labels: dict[str, ttk.Label] = {}
         params = [
             ("Span (m):", self.span_var, 0, 0, "span"),
@@ -221,10 +234,8 @@ class CFDApp(tk.Tk):
             ref_lbl = ttk.Label(phys, text="", foreground="gray")
             ref_lbl.grid(row=r, column=c + 2, sticky="w", padx=(0, 12), pady=2)
             self._phys_default_labels[key] = ref_lbl
-            # Auto-update derived values whenever a physics field changes
             var.trace_add("write", lambda *_: self._update_derived_values())
 
-        # Derived values row (read-only, auto-computed)
         sep = ttk.Separator(phys, orient="horizontal")
         sep.grid(row=3, column=0, columnspan=7, sticky="ew", pady=(6, 2))
         self._derived_label = ttk.Label(phys, text="", foreground="#555555")
@@ -236,7 +247,8 @@ class CFDApp(tk.Tk):
         row += 1
 
         self.xy_var = tk.StringVar()
-        ttk.Entry(lf7, textvariable=self.xy_var, width=80).pack(side="left", padx=4, pady=4, fill="x", expand=True)
+        ttk.Entry(lf7, textvariable=self.xy_var, width=50).pack(
+            side="left", padx=4, pady=4, fill="x", expand=True)
         ttk.Button(lf7, text="Browse…", command=self._browse_xy).pack(side="left", padx=4)
 
         # ── Run / Stop Buttons ───────────────────────────────────────────
@@ -258,7 +270,7 @@ class CFDApp(tk.Tk):
         self._form.rowconfigure(row - 1, weight=1)
         self._form.columnconfigure(0, weight=1)
 
-        self.console = tk.Text(lf8, height=16, wrap="word", state="disabled",
+        self.console = tk.Text(lf8, height=12, wrap="word", state="disabled",
                                bg="#1e1e1e", fg="#d4d4d4",
                                font=("Consolas", 9), insertbackground="#d4d4d4")
         console_scroll = ttk.Scrollbar(lf8, orient="vertical", command=self.console.yview)
@@ -268,23 +280,22 @@ class CFDApp(tk.Tk):
 
         ttk.Button(self._form, text="Clear Console", command=self._clear_console).grid(
             row=row, column=0, columnspan=3, pady=(0, 6))
-        row += 1
 
-        # ── Section: Results Viewer ───────────────────────────────────────
-        lf9 = ttk.LabelFrame(self._form, text="Results Viewer")
-        lf9.grid(row=row, column=0, columnspan=3, sticky="nsew", **pad)
-        row += 1
+        # ═══════════════════════════════════════════════════════════════════
+        # RIGHT PANE — Results Viewer (file tree + image preview)
+        # ═══════════════════════════════════════════════════════════════════
+        right_frame = ttk.LabelFrame(main_pane, text="Results Viewer")
+        main_pane.add(right_frame, weight=2)
 
-        self._form.rowconfigure(row - 1, weight=1)
-
-        results_pane = ttk.PanedWindow(lf9, orient="horizontal")
+        # Vertical split: top = file tree, bottom = image preview
+        results_pane = ttk.PanedWindow(right_frame, orient="vertical")
         results_pane.pack(fill="both", expand=True, padx=4, pady=4)
 
-        # Left: file tree
+        # ── File tree ────────────────────────────────────────────────────
         tree_frame = ttk.Frame(results_pane)
         results_pane.add(tree_frame, weight=1)
 
-        self.results_tree = ttk.Treeview(tree_frame, height=10, selectmode="browse",
+        self.results_tree = ttk.Treeview(tree_frame, height=8, selectmode="browse",
                                           columns=("path",), displaycolumns=())
         self.results_tree.heading("#0", text="Generated Files", anchor="w")
         tree_scroll = ttk.Scrollbar(tree_frame, orient="vertical",
@@ -295,31 +306,33 @@ class CFDApp(tk.Tk):
         self.results_tree.bind("<<TreeviewSelect>>", self._on_result_select)
         self.results_tree.bind("<Double-1>", lambda e: self._open_selected_file())
 
-        # Right: image preview with slideshow navigation
+        # ── Image preview with slideshow navigation ──────────────────────
         preview_frame = ttk.Frame(results_pane)
-        results_pane.add(preview_frame, weight=2)
+        results_pane.add(preview_frame, weight=3)
 
         # Slideshow nav bar
         nav_bar = ttk.Frame(preview_frame)
         nav_bar.pack(fill="x", pady=(0, 2))
-        self._prev_btn = ttk.Button(nav_bar, text="◀ Prev", command=self._slide_prev, state="disabled")
+        self._prev_btn = ttk.Button(nav_bar, text="◀ Prev",
+                                     command=self._slide_prev, state="disabled")
         self._prev_btn.pack(side="left", padx=4)
         self._slide_info = ttk.Label(nav_bar, text="", anchor="center")
         self._slide_info.pack(side="left", fill="x", expand=True)
-        self._next_btn = ttk.Button(nav_bar, text="Next ▶", command=self._slide_next, state="disabled")
+        self._next_btn = ttk.Button(nav_bar, text="Next ▶",
+                                     command=self._slide_next, state="disabled")
         self._next_btn.pack(side="right", padx=4)
 
         self._preview_label = ttk.Label(preview_frame, text="Select a graph to preview",
                                         anchor="center")
         self._preview_label.pack(fill="both", expand=True)
-        self._preview_photo = None  # keep reference to prevent GC
+        self._preview_photo = None
 
         # Slideshow state
         self._slideshow: list[Path] = []
         self._slide_idx: int = 0
 
-        # Buttons below results
-        results_btns = ttk.Frame(lf9)
+        # ── Results action buttons ───────────────────────────────────────
+        results_btns = ttk.Frame(right_frame)
         results_btns.pack(fill="x", padx=4, pady=(0, 4))
         ttk.Button(results_btns, text="Open Selected",
                    command=self._open_selected_file).pack(side="left", padx=4)
@@ -602,10 +615,9 @@ class CFDApp(tk.Tk):
             cat_id = self.results_tree.insert("", "end", text=f"📁 {cat_name} ({len(png_files)})",
                                               open=False)
             for png in png_files:
-                # Show relative path from category root for readability
                 rel = png.relative_to(cat_path)
                 self.results_tree.insert(cat_id, "end", text=str(rel),
-                                         values=(str(png),),  # stash absolute path
+                                         values=(str(png),),
                                          tags=("file",))
 
         # Also list Excel and text summary files
@@ -638,25 +650,18 @@ class CFDApp(tk.Tk):
             self._preview_photo = None
             return
 
-        try:
-            img = Image.open(fpath)
-            # Fit into a reasonable preview size
-            max_w, max_h = 600, 450
-            img.thumbnail((max_w, max_h), Image.LANCZOS)
-            photo = ImageTk.PhotoImage(img)
-            self._preview_label.config(image=photo, text="")
-            self._preview_photo = photo  # prevent garbage collection
-        except Exception:
-            self._preview_label.config(image="", text=f"Cannot preview: {fpath.name}")
-            self._preview_photo = None
+        self._show_preview(fpath)
 
     def _show_preview(self, fpath: Path):
-        """Show an image file in the preview panel."""
+        """Show an image file in the preview panel, scaled to fit available space."""
         if not _HAS_PIL or not fpath.exists():
             return
         try:
             img = Image.open(fpath)
-            max_w, max_h = 600, 450
+            # Scale to fit the current preview label size
+            self._preview_label.update_idletasks()
+            max_w = max(self._preview_label.winfo_width() - 10, 200)
+            max_h = max(self._preview_label.winfo_height() - 10, 200)
             img.thumbnail((max_w, max_h), Image.LANCZOS)
             photo = ImageTk.PhotoImage(img)
             self._preview_label.config(image=photo, text="")
@@ -717,14 +722,12 @@ class CFDApp(tk.Tk):
         coeff_dir = out_path / "coefficient_graphs"
         if coeff_dir.exists():
             if mode == "default":
-                # Single configs — look for Combined_CL_CD or Aerodynamic_Summary in Single/
                 for png in sorted(coeff_dir.rglob("*_Aerodynamic_Summary.png")):
                     key_images.append(png)
                 if not key_images:
                     for png in sorted(coeff_dir.rglob("*_Combined_CL_CD.png")):
                         key_images.append(png)
             else:
-                # Comparison mode — look in Comparison/ folder
                 comp_dir = coeff_dir / "Comparison"
                 if comp_dir.exists():
                     for png in sorted(comp_dir.rglob("*_Aerodynamic_Summary.png")):
