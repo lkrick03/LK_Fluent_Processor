@@ -8,8 +8,8 @@ This script:
 3. Generates Excel summary files
 4. Creates coefficient graphs
 
-Author: Luke K. Smith
-Date: January 2026
+Author: Luke Krick
+Date: February 2026
 """
 
 from pathlib import Path
@@ -31,44 +31,47 @@ from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS, DATA_MANIPU
 # DATA_SOURCES acts as a priority list. If duplicates exist, the one with the higher Version number wins.
 # If versions are identical, they are treated as duplicates (this script logic handles versioning, not path priority).
 DATA_SOURCES = [
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.NG"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.NG"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.5.NG"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.NG"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.NG"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.5.NG"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.G"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.5.G"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.6.G"),
+
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.2"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.3.1"),
 
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1.G"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1.NG"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1.NG"),
 
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414.6.4.6\4.6.1.1.NG")
 
     #Path(r"C:\Path\To\Newer\Reruns"), 
 ]
-OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\Processed_Data\Singular_Data\4.3.2.1.NG")
+OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\Processed_Data\Comparisons\2414_006_004\Mesh_Comparison\4.6_vs_4.3")
 
 # Configuration Extraction Method
 CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
 
 # Comparison Mode
-# Options: 'default', 'turbulence', 'grid', 'version', 'expanded'
+# Options: 'default', 'turbulence', 'grid', 'mesh', 'version', 'expanded'
 # - default: Standard behavior (highest version wins).
 # - turbulence: Groups by Geometry.Mesh to compare turbulence models side-by-side.
 # - grid: Groups by Geometry.Mesh.Turbulence to compare Grid vs No Grid side-by-side.
+# - mesh: Groups by Geometry.Turbulence.Grid to compare mesh types (Medium, Adapted, Fine...) side-by-side.
 # - version: Groups by Geometry.Mesh.Turbulence.Grid to compare versions (V1, V2...) side-by-side.
 # - expanded: Groups by Geometry.Mesh to calculate and compare Grid Efficiency Ratios (L/D Improvement) across turbulence models.
-COMPARISON_MODE = 'default'
+COMPARISON_MODE = 'mesh'
 
 # AoA Filter: Set to a list of angles (e.g., [0, 2, 4]) to only process those AoAs.
 # Set to [] or None to process all.
-AOA_FILTER = []
+AOA_FILTER = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
 
 # Path to folder containing .xy files (if not in source folders)
-# Set to None to only search in source folders
-XY_DATA_SOURCE_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1.NG\y_plus_pressure_data")
+# Only runs when in default comparison mode
+XY_DATA_SOURCE_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414.6.4.6\4.6.1.1.NG\y_plus_pressure_data")
 
 # Processing Parameters
 NUM_ITERATIONS = 150  # Number of last iterations to use for statistics
@@ -102,8 +105,54 @@ def export_force_data(filepath, data, metadata, force_type):
         f.write(f"# Total Points: {len(data)}\n#\n")
         np.savetxt(f, data, fmt='%.6f')
 
-def main():
-    """Main execution function."""
+def main(config=None):
+    """Main execution function.
+    
+    Args:
+        config: Optional dict of settings (from GUI). When None, uses
+                the module-level constants defined above, so running
+                ``python main.py`` directly is unchanged.
+    """
+    # ── Config override: GUI passes a dict, CLI uses module-level globals ──
+    if config:
+        _DATA_SOURCES           = config["data_sources"]
+        _OUTPUT_DIR             = config["output_dir"]
+        _CONFIG_EXTRACTION_METHOD = config["config_extraction_method"]
+        _COMPARISON_MODE        = config["comparison_mode"]
+        _AOA_FILTER             = config.get("aoa_filter")
+        _XY_DATA_SOURCE_DIR     = config.get("xy_data_source_dir", XY_DATA_SOURCE_DIR)
+        _NUM_ITERATIONS         = config["num_iterations"]
+        _RUN_CONVERGENCE        = config["run_convergence_analysis"]
+        _CONVERGENCE_MAX_TRIM   = config["convergence_max_trim"]
+        _CONVERGENCE_NUM_TESTS  = config["convergence_num_tests"]
+        _GRAPH_MAX_COV          = config["graph_max_cov"]
+        _Q_TIMES_A              = config["q_times_a"]
+        _REYNOLDS_NUMBER        = config.get("reynolds_number", REYNOLDS_NUMBER)
+        # config.py settings (may be overridden by schema choice)
+        from config import NAMING_SCHEMAS as _ALL_SCHEMAS
+        _schema = config.get("active_schema", ACTIVE_SCHEMA)
+        _POSITION_MAP           = _ALL_SCHEMAS[_schema]
+        _VALUE_MAPPINGS         = VALUE_MAPPINGS  # shared, not overridden
+        _COMPARISON_CONFIGS     = COMPARISON_CONFIGS
+        _DATA_MANIPULATIONS     = DATA_MANIPULATIONS
+    else:
+        _DATA_SOURCES           = DATA_SOURCES
+        _OUTPUT_DIR             = OUTPUT_DIR
+        _CONFIG_EXTRACTION_METHOD = CONFIG_EXTRACTION_METHOD
+        _COMPARISON_MODE        = COMPARISON_MODE
+        _AOA_FILTER             = AOA_FILTER
+        _XY_DATA_SOURCE_DIR     = XY_DATA_SOURCE_DIR
+        _NUM_ITERATIONS         = NUM_ITERATIONS
+        _RUN_CONVERGENCE        = RUN_CONVERGENCE_ANALYSIS
+        _CONVERGENCE_MAX_TRIM   = CONVERGENCE_MAX_TRIM
+        _CONVERGENCE_NUM_TESTS  = CONVERGENCE_NUM_TESTS
+        _GRAPH_MAX_COV          = GRAPH_MAX_COV
+        _Q_TIMES_A              = Q_TIMES_A
+        _REYNOLDS_NUMBER        = REYNOLDS_NUMBER
+        _POSITION_MAP           = POSITION_MAP
+        _VALUE_MAPPINGS         = VALUE_MAPPINGS
+        _COMPARISON_CONFIGS     = COMPARISON_CONFIGS
+        _DATA_MANIPULATIONS     = DATA_MANIPULATIONS
     
     print("=" * 100)
     print("CFD DATA PROCESSING - CONSOLIDATED WORKFLOW")
@@ -114,21 +163,21 @@ def main():
     print("PART 1: LOADING AND PROCESSING DATA")
     print("=" * 100)
     
-    print(f"\nLoading data from {len(DATA_SOURCES)} sources...")
-    for src in DATA_SOURCES:
+    print(f"\nLoading data from {len(_DATA_SOURCES)} sources...")
+    for src in _DATA_SOURCES:
         print(f"  - {src}")
 
-    all_data, validation_report = load_lift_drag_data(DATA_SOURCES, CONFIG_EXTRACTION_METHOD, POSITION_MAP, VALUE_MAPPINGS, comparison_mode=COMPARISON_MODE)
+    all_data, validation_report = load_lift_drag_data(_DATA_SOURCES, _CONFIG_EXTRACTION_METHOD, _POSITION_MAP, _VALUE_MAPPINGS, comparison_mode=_COMPARISON_MODE)
     
     # Apply Quick AoA Filter if set
-    if AOA_FILTER:
-        print(f"\n⚡ Applying AoA Filter: {AOA_FILTER}")
+    if _AOA_FILTER:
+        print(f"\n⚡ Applying AoA Filter: {_AOA_FILTER}")
         initial_count = len(all_data)
         filtered_data = {}
         for key, value in all_data.items():
             # key is (config, aoa_str)
             # We need to extract number from aoa_str (e.g. "AoA_0" -> 0)
-            if extract_aoa_number(key[1]) in AOA_FILTER:
+            if extract_aoa_number(key[1]) in _AOA_FILTER:
                  filtered_data[key] = value
         
         all_data = filtered_data
@@ -154,7 +203,7 @@ def main():
     print("-" * 100)
 
     # Apply optional data manipulations (e.g., NG/G ratios)
-    derived_entries, manipulation_reports = apply_data_manipulations(all_data, DATA_MANIPULATIONS, VALUE_MAPPINGS)
+    derived_entries, manipulation_reports = apply_data_manipulations(all_data, _DATA_MANIPULATIONS, _VALUE_MAPPINGS)
     if derived_entries:
         all_data.update(derived_entries)
 
@@ -177,7 +226,7 @@ def main():
         print(f"  ... and {len(all_data) - 5} more")
     
     # Export to text files
-    processed_data_dir = OUTPUT_DIR / "processed_data"
+    processed_data_dir = _OUTPUT_DIR / "processed_data"
     processed_data_dir.mkdir(parents=True, exist_ok=True)
     
     for (config, aoa), data in all_data.items():
@@ -204,26 +253,26 @@ def main():
     print(f"✓ Exported {len(all_data) * 2} text files to: {processed_data_dir}")
     
     # Create summary statistics text file
-    config_name = OUTPUT_DIR.name
-    summary_file = OUTPUT_DIR / f"SUMMARY_{config_name}.txt"
+    config_name = _OUTPUT_DIR.name
+    summary_file = _OUTPUT_DIR / f"SUMMARY_{config_name}.txt"
     
     with open(summary_file, 'w', encoding='utf-8') as f:
         f.write("=" * 100 + "\n")
-        f.write(f"DATA PROCESSING SUMMARY - Last {NUM_ITERATIONS} Iterations\n")
+        f.write(f"DATA PROCESSING SUMMARY - Last {_NUM_ITERATIONS} Iterations\n")
         f.write("=" * 100 + "\n\n")
         f.write(f"Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(f"Data Sources:\n")
-        for src in DATA_SOURCES:
+        for src in _DATA_SOURCES:
             f.write(f"  - {src}\n")
-        f.write(f"Output Directory: {OUTPUT_DIR}\n")
-        f.write(f"Extraction Method: {CONFIG_EXTRACTION_METHOD}\n\n")
+        f.write(f"Output Directory: {_OUTPUT_DIR}\n")
+        f.write(f"Extraction Method: {_CONFIG_EXTRACTION_METHOD}\n\n")
         f.write("=" * 100 + "\n\n")
         
         sorted_data = sorted(all_data.items(), key=lambda x: (get_simulation_family_name(x[0][0]), extract_aoa_number(x[0][1])))
         
         for (config, aoa), data in sorted_data:
-            lift_last_n = data['lift'][-NUM_ITERATIONS:] if len(data['lift']) >= NUM_ITERATIONS else data['lift']
-            drag_last_n = data['drag'][-NUM_ITERATIONS:] if len(data['drag']) >= NUM_ITERATIONS else data['drag']
+            lift_last_n = data['lift'][-_NUM_ITERATIONS:] if len(data['lift']) >= _NUM_ITERATIONS else data['lift']
+            drag_last_n = data['drag'][-_NUM_ITERATIONS:] if len(data['drag']) >= _NUM_ITERATIONS else data['drag']
             
             lift_mean, lift_cov = compute_statistics(lift_last_n) if lift_last_n else (0, 0)
             drag_mean, drag_cov = compute_statistics(drag_last_n) if drag_last_n else (0, 0)
@@ -248,16 +297,16 @@ def main():
     # ==================== PART 2: CONVERGENCE ANALYSIS (OPTIONAL) ====================
     convergence_results = {}
     
-    if RUN_CONVERGENCE_ANALYSIS:
+    if _RUN_CONVERGENCE:
         print("\n" + "=" * 100)
         print("PART 2: CONVERGENCE ANALYSIS")
         print("=" * 100)
         
         print(f"\nAnalyzing convergence for {len(all_data)} configurations...")
-        print(f"Max trim: {CONVERGENCE_MAX_TRIM * 100}% of data, Tests: {CONVERGENCE_NUM_TESTS}")
+        print(f"Max trim: {_CONVERGENCE_MAX_TRIM * 100}% of data, Tests: {_CONVERGENCE_NUM_TESTS}")
         
         for idx, ((config, aoa), data) in enumerate(all_data.items(), 1):
-            if len(data['lift']) < CONVERGENCE_NUM_TESTS + 10 or len(data['drag']) < CONVERGENCE_NUM_TESTS + 10:
+            if len(data['lift']) < _CONVERGENCE_NUM_TESTS + 10 or len(data['drag']) < _CONVERGENCE_NUM_TESTS + 10:
                 print(f"\n  [{idx}/{len(all_data)}] Skipping: {config} - {aoa} (Insufficient data points: {len(data['lift'])})")
                 continue
 
@@ -268,9 +317,9 @@ def main():
                 config, aoa,
                 data['lift'],
                 data['drag'],
-                OUTPUT_DIR,
-                CONVERGENCE_MAX_TRIM,
-                CONVERGENCE_NUM_TESTS
+                _OUTPUT_DIR,
+                _CONVERGENCE_MAX_TRIM,
+                _CONVERGENCE_NUM_TESTS
             )
             
             convergence_results[(config, aoa)] = {
@@ -300,12 +349,12 @@ def main():
 
         # Create Summary Charts
         print("\n  Generating convergence summary plots...")
-        plot_convergence_summary(convergence_results, all_data, OUTPUT_DIR, comparison_mode=COMPARISON_MODE)
+        plot_convergence_summary(convergence_results, all_data, _OUTPUT_DIR, comparison_mode=_COMPARISON_MODE)
         
         print(f"\n✓ Convergence analysis complete")
         
         # Export convergence analysis text file
-        convergence_dir = OUTPUT_DIR / "convergence_analysis"
+        convergence_dir = _OUTPUT_DIR / "convergence_analysis"
         convergence_dir.mkdir(parents=True, exist_ok=True)
         
         convergence_text_file = convergence_dir / "Convergence_Analysis_Results.txt"
@@ -403,8 +452,8 @@ def main():
     print("=" * 100)
     
     # Extract config name from OUTPUT_DIR
-    config_name = OUTPUT_DIR.name
-    excel_file = OUTPUT_DIR / f'SUMMARY_{config_name}.xlsx'
+    config_name = _OUTPUT_DIR.name
+    excel_file = _OUTPUT_DIR / f'SUMMARY_{config_name}.xlsx'
     
     # Create workbook
     from openpyxl import Workbook
@@ -412,35 +461,35 @@ def main():
     
     # Sheet 1: Data Summary
     print("\n  Creating sheet: Data Summary")
-    create_data_summary_sheet(wb, all_data, NUM_ITERATIONS, convergence_results)
+    create_data_summary_sheet(wb, all_data, _NUM_ITERATIONS, convergence_results)
     
     # Sheet 2: Turbulence Comparison
     # Sheet 2: Turbulence / Grid Comparison
-    if COMPARISON_MODE != 'default':
-        print(f"  Creating sheet: {COMPARISON_MODE.capitalize()} Comparison")
-        create_turbulence_comparison_sheet(wb, all_data, NUM_ITERATIONS, convergence_results, comparison_mode=COMPARISON_MODE)
+    if _COMPARISON_MODE != 'default':
+        print(f"  Creating sheet: {_COMPARISON_MODE.capitalize()} Comparison")
+        create_turbulence_comparison_sheet(wb, all_data, _NUM_ITERATIONS, convergence_results, comparison_mode=_COMPARISON_MODE)
     else:
         print("  Skipping comparison sheet (Mode: default)")
     
     # Sheet 3: Coefficients
     print("  Creating sheet: Coefficients")
-    create_coefficients_sheet(wb, all_data, NUM_ITERATIONS, convergence_results, Q_TIMES_A)
+    create_coefficients_sheet(wb, all_data, _NUM_ITERATIONS, convergence_results, _Q_TIMES_A)
     
     version_sheet_created = False
     # Only use COMPARISON_CONFIGS if explicitly in 'version' mode
     # For 'default', 'turbulence', 'grid', 'expanded', we rely on their specific logic.
-    should_run_version_comparison = (COMPARISON_MODE == 'version')
+    should_run_version_comparison = (_COMPARISON_MODE == 'version')
     
     if should_run_version_comparison:
         print("  Creating sheet: Version_Comparison")
         version_sheet_created = create_version_comparison_sheet(
             wb,
             all_data,
-            COMPARISON_CONFIGS,
-            NUM_ITERATIONS,
+            _COMPARISON_CONFIGS,
+            _NUM_ITERATIONS,
             convergence_results,
-            Q_TIMES_A,
-            comparison_mode=COMPARISON_MODE
+            _Q_TIMES_A,
+            comparison_mode=_COMPARISON_MODE
         )
         if not version_sheet_created:
             print("  ⚠ Version comparison sheet skipped (no valid pairs or multi-version families)")
@@ -448,7 +497,7 @@ def main():
     # Sheet 4: Optimized Statistics (if convergence was run)
     if convergence_results:
         print("  Creating sheet: Optimized_Statistics")
-        create_optimized_statistics_sheet(wb, all_data, convergence_results, NUM_ITERATIONS, Q_TIMES_A)
+        create_optimized_statistics_sheet(wb, all_data, convergence_results, _NUM_ITERATIONS, _Q_TIMES_A)
     
     # Save workbook
     wb.save(excel_file)
@@ -484,18 +533,18 @@ def main():
             lift_values = data['lift'][optimal_trim:]
             drag_values = data['drag'][optimal_trim:]
         else:
-            lift_values = data['lift'][-NUM_ITERATIONS:] if len(data['lift']) >= NUM_ITERATIONS else data['lift']
-            drag_values = data['drag'][-NUM_ITERATIONS:] if len(data['drag']) >= NUM_ITERATIONS else data['drag']
+            lift_values = data['lift'][-_NUM_ITERATIONS:] if len(data['lift']) >= _NUM_ITERATIONS else data['lift']
+            drag_values = data['drag'][-_NUM_ITERATIONS:] if len(data['drag']) >= _NUM_ITERATIONS else data['drag']
         
         lift_mean = np.mean(lift_values) if lift_values else 0
         drag_mean = np.mean(drag_values) if drag_values else 0
         lift_std = np.std(lift_values) if lift_values else 0
         drag_std = np.std(drag_values) if drag_values else 0
         
-        C_L = lift_mean / Q_TIMES_A if Q_TIMES_A != 0 else 0
-        C_D = drag_mean / Q_TIMES_A if Q_TIMES_A != 0 else 0
-        C_L_std = lift_std / Q_TIMES_A if Q_TIMES_A != 0 else 0
-        C_D_std = drag_std / Q_TIMES_A if Q_TIMES_A != 0 else 0
+        C_L = lift_mean / _Q_TIMES_A if _Q_TIMES_A != 0 else 0
+        C_D = drag_mean / _Q_TIMES_A if _Q_TIMES_A != 0 else 0
+        C_L_std = lift_std / _Q_TIMES_A if _Q_TIMES_A != 0 else 0
+        C_D_std = drag_std / _Q_TIMES_A if _Q_TIMES_A != 0 else 0
         
         coefficient_data[(config, aoa)] = {
             'turbulence_model': data['turbulence_model'],
@@ -511,128 +560,151 @@ def main():
     
     # Create graphs
     print("\nGenerating graphs...")
-    create_coefficient_graphs(all_data, coefficient_data, OUTPUT_DIR, POSITION_MAP, VALUE_MAPPINGS, 
-                              comparison_mode=COMPARISON_MODE, max_cov_threshold=GRAPH_MAX_COV)
+    create_coefficient_graphs(all_data, coefficient_data, _OUTPUT_DIR, _POSITION_MAP, _VALUE_MAPPINGS, 
+                              comparison_mode=_COMPARISON_MODE, max_cov_threshold=_GRAPH_MAX_COV)
 
     # Create Expanded Graphs (Efficiency Ratio)
     print("Generating expanded graphs...")
-    create_expanded_graphs(coefficient_data, OUTPUT_DIR, comparison_mode=COMPARISON_MODE, max_cov_threshold=GRAPH_MAX_COV)
+    create_expanded_graphs(coefficient_data, _OUTPUT_DIR, comparison_mode=_COMPARISON_MODE, max_cov_threshold=_GRAPH_MAX_COV)
     
-    graphs_dir = OUTPUT_DIR / "coefficient_graphs"
+    graphs_dir = _OUTPUT_DIR / "coefficient_graphs"
     print(f"\n✓ Graphs saved to: {graphs_dir}")
     print("✓ Organization: coefficient_graphs / turbulence_model / config /")
     print("✓ Each config contains: C_L_vs_AoA.png, C_D_vs_AoA.png, C_L_C_D_Combined.png")
     
     # ==================== PART 5: GENERATING EXPORTED PLOTS (Cp, Y+) ====================
-    print("\n" + "=" * 100)
-    print("PART 5: GENERATING EXPORTED PLOTS (Cp, Y+)")
-    print("=" * 100)
+    if _COMPARISON_MODE != 'default':
+        print("\n⚠ Skipping Extra Plots (Cp, Y+, Cf) — not applicable in comparison mode.")
+    else:
+        print("\n" + "=" * 100)
+        print("PART 5: GENERATING EXPORTED PLOTS (Cp, Y+)")
+        print("=" * 100)
     
-    plot_counts = {"Cp": 0, "Y+": 0}
+        plot_counts = {"Cp": 0, "Y+": 0, "Cf": 0}
     
-    for (config, aoa), data in all_data.items():
-        source_dir = data.get('source_dir')
-        if not source_dir:
-            continue
-        
-        print(f"\n  Searching for XY files: config={config}, aoa={aoa}")
-        print(f"    source_dir: {source_dir}")
+        for (config, aoa), data in all_data.items():
+            source_dir = data.get('source_dir')
+            if not source_dir:
+                continue
             
-        # Search for .xy files in the source folder
-        all_xy_files = list(source_dir.glob("*.xy"))
-        print(f"    Found {len(all_xy_files)} .xy files in source_dir")
-        
-        # Also check 'Exported_Plots' subdir if it exists (common output location)
-        exported_subdir = source_dir / "Exported_Plots"
-        if exported_subdir.exists():
-            all_xy_files.extend(list(exported_subdir.glob("*.xy")))
-        
-        # Check sibling 'y_plus_pressure_data' folder (next to AoA folders)
-        sibling_xy_dir = source_dir.parent / "y_plus_pressure_data"
-        if sibling_xy_dir.exists():
-            sibling_files = list(sibling_xy_dir.glob("*.xy"))
-            print(f"    Found {len(sibling_files)} .xy files in sibling y_plus_pressure_data/")
-            all_xy_files.extend(sibling_files)
-        else:
-            print(f"    Sibling dir not found: {sibling_xy_dir}")
-            
-        # Also check explicit XY data folder if configured
-        if XY_DATA_SOURCE_DIR and XY_DATA_SOURCE_DIR.exists():
-            explicit_files = list(XY_DATA_SOURCE_DIR.glob("*.xy"))
-            print(f"    Found {len(explicit_files)} .xy files in XY_DATA_SOURCE_DIR")
-            all_xy_files.extend(explicit_files)
-        elif XY_DATA_SOURCE_DIR:
-            print(f"    WARNING: XY_DATA_SOURCE_DIR does not exist: {XY_DATA_SOURCE_DIR}")
-        
-        # Deduplicate (sibling and explicit might overlap)
-        all_xy_files = list(set(all_xy_files))
-        print(f"    Total unique .xy files: {len(all_xy_files)}")
-            
-        # Robust filtering helper
-        aoa_num = extract_aoa_number(aoa)
-        
-        def is_match(f):
-            if config not in f.name:
-                return False
-            remainder = f.name.replace(config, "")
-            parts = remainder.replace('_', '.').replace('-', '.').split('.')
-            return str(aoa_num) in parts
-
-        # Filter for Cp and Y+
-        cp_files = [f for f in all_xy_files if ('cp' in f.name.lower() or 'pressure' in f.name.lower()) and is_match(f)]
-        yplus_files = [f for f in all_xy_files if ('yplus' in f.name.lower() or 'y-plus' in f.name.lower() or 'y_plus' in f.name.lower()) and is_match(f)]
-        
-        if cp_files or yplus_files:
-            print(f"    Matched: {len(cp_files)} Cp files, {len(yplus_files)} Y+ files")
-            for f in cp_files: print(f"      Cp: {f.name}")
-            for f in yplus_files: print(f"      Y+: {f.name}")
-        
-        # Setup output directories
-        base_plot_dir = OUTPUT_DIR / "Extra_Plots"
-        cp_out_dir = base_plot_dir / "pressure_coefficient" / data['turbulence_model'] / config
-        yplus_out_dir = base_plot_dir / "y_plus" / data['turbulence_model'] / config
-        
-        # Process Cp Files
-        for f in cp_files:
-            # (Already filtered by is_match)
-            cp_out_dir.mkdir(parents=True, exist_ok=True)
-            df = read_fluent_xy(f)
-            if not df.empty:
-                output_path = cp_out_dir / f"Cp_{config}_{aoa}.png"
-                plot_xy_series(
-                    df, 
-                    title=f"Pressure Coefficient - {config} - {aoa}",
-                    xlabel="X Position (m)",
-                    ylabel="Pressure Coefficient ($C_p$)",
-                    output_path=output_path,
-                    invert_y=True
-                )
-                plot_counts["Cp"] += 1
+            print(f"\n  Searching for XY files: config={config}, aoa={aoa}")
+            print(f"    source_dir: {source_dir}")
                 
-        # Process Y+ Files
-        for f in yplus_files:
-            # (Already filtered by is_match)
-            yplus_out_dir.mkdir(parents=True, exist_ok=True)
-            df = read_fluent_xy(f)
-            if not df.empty:
-                output_path = yplus_out_dir / f"Yplus_{config}_{aoa}.png"
-                plot_xy_series(
-                    df,
-                    title=f"Wall Y+ Distribution - {config} - {aoa}",
-                    xlabel="X Position (m)",
-                    ylabel="Wall Y+",
-                    output_path=output_path,
-                    invert_y=False
-                )
-                plot_counts["Y+"] += 1
+            # Search for .xy files in the source folder
+            all_xy_files = list(source_dir.glob("*.xy"))
+            print(f"    Found {len(all_xy_files)} .xy files in source_dir")
+            
+            # Also check 'Exported_Plots' subdir if it exists (common output location)
+            exported_subdir = source_dir / "Exported_Plots"
+            if exported_subdir.exists():
+                all_xy_files.extend(list(exported_subdir.glob("*.xy")))
+            
+            # Check sibling 'y_plus_pressure_data' folder (next to AoA folders)
+            sibling_xy_dir = source_dir.parent / "y_plus_pressure_data"
+            if sibling_xy_dir.exists():
+                sibling_files = list(sibling_xy_dir.glob("*.xy"))
+                print(f"    Found {len(sibling_files)} .xy files in sibling y_plus_pressure_data/")
+                all_xy_files.extend(sibling_files)
+            else:
+                print(f"    Sibling dir not found: {sibling_xy_dir}")
+                
+            # Also check explicit XY data folder if configured
+            if _XY_DATA_SOURCE_DIR and _XY_DATA_SOURCE_DIR.exists():
+                explicit_files = list(_XY_DATA_SOURCE_DIR.glob("*.xy"))
+                print(f"    Found {len(explicit_files)} .xy files in XY_DATA_SOURCE_DIR")
+                all_xy_files.extend(explicit_files)
+            elif _XY_DATA_SOURCE_DIR:
+                print(f"    WARNING: XY_DATA_SOURCE_DIR does not exist: {_XY_DATA_SOURCE_DIR}")
+            
+            # Deduplicate (sibling and explicit might overlap)
+            all_xy_files = list(set(all_xy_files))
+            print(f"    Total unique .xy files: {len(all_xy_files)}")
+                
+            # Robust filtering helper
+            aoa_num = extract_aoa_number(aoa)
+            
+            def is_match(f):
+                if config not in f.name:
+                    return False
+                remainder = f.name.replace(config, "")
+                parts = remainder.replace('_', '.').replace('-', '.').split('.')
+                return str(aoa_num) in parts
 
-    print(f"\n✓ Generated {plot_counts['Cp']} Cp plots and {plot_counts['Y+']} Y+ plots")
-    print(f"✓ Saved to: {OUTPUT_DIR / 'Extra_Plots'}")    
+            # Filter for Cp and Y+
+            cp_files = [f for f in all_xy_files if ('cp' in f.name.lower() or 'pressure' in f.name.lower()) and is_match(f)]
+            yplus_files = [f for f in all_xy_files if ('yplus' in f.name.lower() or 'y-plus' in f.name.lower() or 'y_plus' in f.name.lower()) and is_match(f)]
+            cf_files = [f for f in all_xy_files if ('skin' in f.name.lower() or 'friction' in f.name.lower()) and is_match(f)]
+            
+            if cp_files or yplus_files or cf_files:
+                print(f"    Matched: {len(cp_files)} Cp, {len(yplus_files)} Y+, {len(cf_files)} Cf files")
+                for f in cp_files: print(f"      Cp: {f.name}")
+                for f in yplus_files: print(f"      Y+: {f.name}")
+                for f in cf_files: print(f"      Cf: {f.name}")
+            
+            # Setup output directories
+            base_plot_dir = _OUTPUT_DIR / "Extra_Plots"
+            cp_out_dir = base_plot_dir / "pressure_coefficient" / data['turbulence_model'] / config
+            yplus_out_dir = base_plot_dir / "y_plus" / data['turbulence_model'] / config
+            cf_out_dir = base_plot_dir / "skin_friction" / data['turbulence_model'] / config
+            
+            # Process Cp Files
+            for f in cp_files:
+                # (Already filtered by is_match)
+                cp_out_dir.mkdir(parents=True, exist_ok=True)
+                df = read_fluent_xy(f)
+                if not df.empty:
+                    output_path = cp_out_dir / f"Cp_{config}_{aoa}.png"
+                    plot_xy_series(
+                        df, 
+                        title=f"Pressure Coefficient - {config} - {aoa}",
+                        xlabel="X Position (m)",
+                        ylabel="Pressure Coefficient ($C_p$)",
+                        output_path=output_path,
+                        invert_y=True
+                    )
+                    plot_counts["Cp"] += 1
+                    
+            # Process Y+ Files
+            for f in yplus_files:
+                # (Already filtered by is_match)
+                yplus_out_dir.mkdir(parents=True, exist_ok=True)
+                df = read_fluent_xy(f)
+                if not df.empty:
+                    output_path = yplus_out_dir / f"Yplus_{config}_{aoa}.png"
+                    plot_xy_series(
+                        df,
+                        title=f"Wall Y+ Distribution - {config} - {aoa}",
+                        xlabel="X Position (m)",
+                        ylabel="Wall Y+",
+                        output_path=output_path,
+                        invert_y=False
+                    )
+                    plot_counts["Y+"] += 1
+                    
+            # Process Cf Files
+            for f in cf_files:
+                # (Already filtered by is_match)
+                cf_out_dir.mkdir(parents=True, exist_ok=True)
+                df = read_fluent_xy(f)
+                if not df.empty:
+                    output_path = cf_out_dir / f"Cf_{config}_{aoa}.png"
+                    plot_xy_series(
+                        df,
+                        title=f"Skin Friction Coefficient - {config} - {aoa}",
+                        xlabel="X Position (m)",
+                        ylabel="Skin Friction Coefficient ($C_f$)",
+                        output_path=output_path,
+                        invert_y=False
+                    )
+                    plot_counts["Cf"] += 1
+
+        print(f"\n✓ Generated {plot_counts['Cp']} Cp, {plot_counts['Y+']} Y+, {plot_counts['Cf']} Cf plots")
+        print(f"✓ Saved to: {_OUTPUT_DIR / 'Extra_Plots'}")    
     # ==================== FINAL SUMMARY ====================
     print("\n" + "=" * 100)
     print("WORKFLOW COMPLETE!")
     print("=" * 100)
-    print(f"\nOutputs saved to: {OUTPUT_DIR}")
+    print(f"\nOutputs saved to: {_OUTPUT_DIR}")
     print(f"  ├── processed_data.pkl")
     if convergence_results:
         print(f"  ├── convergence_results.pkl")

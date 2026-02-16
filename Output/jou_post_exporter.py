@@ -18,15 +18,15 @@ from datetime import datetime
 # ============================================================
 
 # OUTPUT SETTINGS — where the .jou file itself is saved
-export_filename = "post_process_4.3.2.1.NG"          # Filename (no .jou needed)
-export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1.NG"
+export_filename = "post_process_4.6.1.1.NG"          # Filename (no .jou needed)
+export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414.6.4.6\4.6.1.1.NG"
 
 # --- 1. Case/Data File Locations ---
 # Base directory containing AoA_<angle> folders with case/data files
-BASE_CASE_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1.NG"
+BASE_CASE_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414.6.4.6\4.6.1.1.NG"
 
 # Configuration name (matches your file naming convention, e.g. "4.6.1.1.NG")
-CONFIG_NAME = "4.3.2.1.NG"
+CONFIG_NAME = "4.6.1.1.NG"
 
 # List of AoA values to process
 AOA_LIST = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
@@ -35,7 +35,7 @@ AOA_LIST = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
 # Set to None to save exported .xy files alongside each case file
 # Or set a path to collect all exports in one place
 # Keep the folder name y_plus_pressure_data, otherwise main.py needs to be changed
-XY_OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.2.1.NG\y_plus_pressure_data"
+XY_OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414.6.4.6\4.6.1.1.NG\y_plus_pressure_data"
 
 # --- 3. Airfoil Wall Surface Names ---
 # Instance numbers that make up the airfoil wall
@@ -44,9 +44,32 @@ AIRFOIL_SURFACE_TEMPLATE = "wall-enclosure-enclosure_instance_{}_solid1"
 
 # --- 4. Variables to Export ---
 # Format: { "fluent-variable-name": "output-label" }
+# Available Fluent variables for /plot/plot:
+#   abs-angular-coordinate, absolute-pressure, angular-coordinate, anisotropic-adaption-cells,
+#   aspect-ratio, axial-coordinate, axial-velocity, boundary-cell-dist, boundary-layer-cells,
+#   boundary-normal-dist, boundary-volume-dist, cell-element-type, cell-equiangle-skew,
+#   cell-equivolume-skew, cell-id, cell-parent-index, cell-partition-active, cell-partition-stored,
+#   cell-refine-level, cell-reynolds-number, cell-type, cell-volume, cell-volume-change,
+#   cell-wall-distance, cell-weight, cell-zone, density, density-all, dp-dx, dp-dy, dp-dz,
+#   dx-velocity-dx, dx-velocity-dy, dx-velocity-dz, dy-velocity-dx, dy-velocity-dy, dy-velocity-dz,
+#   dynamic-pressure, dz-velocity-dx, dz-velocity-dy, dz-velocity-dz, face-area-magnitude,
+#   face-handedness, helicity, interface-overlap-fraction, lambda2-criterion, mark-poor-elements,
+#   mass-imbalance, mesh-x-velocity, mesh-y-velocity, mesh-z-velocity, orthogonal-quality,
+#   partition-neighbors, pressure, pressure-coefficient, pressure-hessian-indicator, production-of-k,
+#   q-criterion, radial-coordinate, radial-velocity, raw-q-criterion, rel-axial-velocity,
+#   rel-radial-velocity, rel-tangential-velocity, rel-total-pressure, rel-velocity-magnitude,
+#   relative-velocity-angle, relative-x-velocity, relative-y-velocity, relative-z-velocity,
+#   skin-friction-coef, smoothed-cell-refine-level, specific-diss-rate, strain-rate-mag,
+#   tangential-velocity, total-pressure, turb-diss-rate, turb-intensity, turb-kinetic-energy,
+#   turb-reynolds-number-rey, velocity-angle, velocity-magnitude, viscosity-eff, viscosity-lam,
+#   viscosity-ratio, viscosity-turb, vorticity-mag, wall-shear, wall-temp-in-surf, wall-temp-out-surf,
+#   x-coordinate, x-face-area, x-velocity, x-vorticity, x-wall-shear, y-coordinate, y-face-area,
+#   y-plus, y-star, y-velocity, y-vorticity, y-wall-shear, z-coordinate, z-face-area, z-velocity,
+#   z-vorticity, z-wall-shear
 EXPORT_VARIABLES = {
     "pressure-coefficient": "Cp",
     "yplus": "Yplus",
+    "skin-friction-coef": "Skin_Friction",
 }
 
 # --- 5. Plot Settings ---

@@ -488,6 +488,15 @@ def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value
                     metadata['aoa'],
                     metadata.get('version_sort_key', 0)
                 )
+            elif comparison_mode == 'mesh':
+                # If comparing meshes, the mesh itself is part of the unique identity
+                sim_identity = (
+                    metadata['geometry'], 
+                    metadata['mesh'], 
+                    metadata['turbulence_model'], 
+                    metadata['grid'], 
+                    metadata['aoa']
+                )
             else:
                 sim_identity = (
                     metadata['geometry'], 
@@ -796,6 +805,7 @@ def get_grouping_key(config_string, mode='default'):
     Modes:
     - 'turbulence': Group by Geom.Mesh (ignores Turb, Grid, Version) -> comparables are Sidebar: Turb/Grid
     - 'grid': Group by Geom.Mesh.Turb (ignores Grid, Version) -> comparables are Grid
+    - 'mesh': Group by Geom.Turb.Grid (ignores Mesh, Version) -> comparables are Mesh
     - 'version': Group by Geom.Mesh.Turb.Grid (fully specific) -> comparables are Version
     - 'default': Group by Geom.Mesh.Turb.Grid (ignores Version)
     """
@@ -829,6 +839,9 @@ def get_grouping_key(config_string, mode='default'):
     elif mode == 'grid':
         # Group by Geometry + Mesh + Turbulence
         return f"{geom}.{mesh}.{turb}" if len(parts) >= 3 else config_string
+    elif mode == 'mesh':
+        # Mesh mode: Group by Geom + Turbulence + Grid (mesh varies)
+        return f"{geom}.{turb}.{grid_part}" if grid_part else f"{geom}.{turb}"
     elif mode == 'expanded':
          # Expanded mode: Group by Geom.Mesh ONLY (exclude grid)
          # so that G and NG end up in the same family for pairing
@@ -1226,6 +1239,7 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
     Create 'Comparison' sheet depending on mode.
     Mode 'turbulence': Columns are Turbulence Models.
     Mode 'grid': Columns are Grid Types.
+    Mode 'mesh': Columns are Mesh Types.
     """
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
@@ -1235,6 +1249,8 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         sheet_title = 'Turbulence Comparison'
     elif comparison_mode == 'grid':
         sheet_title = 'Grid Comparison'
+    elif comparison_mode == 'mesh':
+        sheet_title = 'Mesh Comparison'
         
     ws = wb.create_sheet(title=sheet_title)
     
@@ -1287,6 +1303,9 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         elif comparison_mode == 'grid':
             # Label = Grid (e.g. With Grid, No Grid)
             sim_type = "With Grid" if data['grid'] in ['G', 'With Grid'] else "No Grid"
+        elif comparison_mode == 'mesh':
+            # Label = Mesh Type (e.g. Medium, Adapted, Fine)
+            sim_type = data.get('mesh', 'Unknown Mesh')
         else:
             sim_type = data['turbulence_model']
         
@@ -2211,6 +2230,9 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
             series_label = turb_model
         elif comparison_mode == 'grid':
             series_label = grid_status
+        elif comparison_mode == 'mesh':
+            org_data = all_data.get((config, aoa), {})
+            series_label = org_data.get('mesh', 'Unknown Mesh')
         elif comparison_mode == 'version':
             org_data = all_data.get((config, aoa), {})
             ver = org_data.get('version', 'V?')
@@ -2735,6 +2757,11 @@ def plot_convergence_summary(convergence_results, all_data, output_dir, comparis
             # Group by Geom.Mesh.Turb (so Grid varies)
             base_family = get_grouping_key(config, mode='grid')
             sim_type = "With Grid" if data.get('grid') in ['G', 'With Grid'] else "No Grid"
+
+        elif comparison_mode == 'mesh':
+            # Group by Geom.Turb.Grid (so Mesh varies)
+            base_family = get_grouping_key(config, mode='mesh')
+            sim_type = data.get('mesh', 'Unknown Mesh')
             
         else:
             base_family = get_grouping_key(config, mode='default')
