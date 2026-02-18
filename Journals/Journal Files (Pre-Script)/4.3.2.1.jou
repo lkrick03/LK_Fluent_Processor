@@ -1,0 +1,97 @@
+; ============================================================
+; ANSYS Fluent Journal File — AoA Sweep (5° to 20°)
+; Velocity magnitude: 24.38 m/s
+; Turbulence: Intensity = 5%, Length Scale = 10
+; ============================================================
+
+(define base-output-dir "C:/Users/lukek/OneDrive/Documents/Thesis/NACA_2414_2D/Fleunt/Directories/2414_006_004.3/4.3.2.1/Case_and_Data/WO_Flaps")
+
+; ---- Parameters ----
+(define V_mag 24.38)
+(define aoa_start 5)
+(define aoa_end 20)
+(define aoa_step 5)
+
+; ---- YOUR ACTUAL report file names (from /solve/report-files/list) ----
+(define drag-report-file-name "drag-rfile")  ; CHANGE THIS to match your actual drag report file name
+(define lift-report-file-name "lift-rfile")  ; CHANGE THIS to match your actual lift report file name
+
+; ---- Explicit zone lists ----
+(define inlet-list '("inlet-enclosure-enclosure_instance_29_solid1"
+                     "inlet-enclosure-enclosure_instance_28_solid1"
+                     "inlet-enclosure-enclosure_instance_47_solid1"
+                     "inlet-enclosure-enclosure_instance_26_solid1"
+                     "inlet-enclosure-enclosure_instance_38_solid1"
+                     "inlet-enclosure-enclosure_instance_12_solid1"
+                     "inlet_bottom-enclosure-enclosure_instance_10_solid1"
+                     "inlet_bottom-enclosure-enclosure_instance_11_solid1"
+                     "inlet_bottom-enclosure-enclosure_instance_12_solid1"
+                     "inlet_bottom-enclosure-enclosure_instance_4_solid1"
+                     "inlet_bottom-enclosure-enclosure_instance_5_solid1"
+                     "inlet_bottom-enclosure-enclosure_instance_6_solid1"
+                     "inlet_bottom-enclosure-enclosure_instance_7_solid1"
+                     "inlet_bottom-enclosure-enclosure_instance_8_solid1"
+                     "inlet_bottom-enclosure-enclosure_instance_9_solid1"))
+
+; ---- Helpers ----
+(define (deg-to-rad deg) (* deg (/ 3.14159265359 180.0)))
+(define (ensure-directory dir-path)
+  (system (format #f "mkdir \"~a\"" dir-path)))
+
+; ---- Create base output directory ----
+(ensure-directory base-output-dir)
+
+; ---- AoA loop ----
+(do ((aoa aoa_start (+ aoa aoa_step)))
+    ((> aoa aoa_end))
+  
+  (define current-aoa-dir (format #f "~a/AoA_~a" base-output-dir aoa))
+  (ensure-directory current-aoa-dir)
+  
+  (define aoa_rad (deg-to-rad aoa))
+  (define V_x (* V_mag (cos aoa_rad)))
+  (define V_y (* V_mag (sin aoa_rad)))
+  (define V_z 0.0)
+  
+  (display (format #f "~%===== Running AoA = ~a° =====~%" aoa))
+  (display (format #f "Saving results to: ~a~%" current-aoa-dir))
+  (display (format #f "Velocity components: Vx = ~a, Vy = ~a, Vz = ~a~%" V_x V_y V_z))
+  
+  ; ---- Update drag and lift report file paths for this AoA ----
+  (define new-drag-path (format #f "~a/drag_force_AoA_~a.txt" current-aoa-dir aoa))
+  (define new-lift-path (format #f "~a/lift_force_AoA_~a.txt" current-aoa-dir aoa))
+  
+  (display (format #f "Changing drag report path to: ~a~%" new-drag-path))
+  (ti-menu-load-string
+    (format #f "/solve/report-files/edit ~a file-name \"~a\" q~%" 
+            drag-report-file-name new-drag-path))
+  
+  (display (format #f "Changing lift report path to: ~a~%" new-lift-path))
+  (ti-menu-load-string
+    (format #f "/solve/report-files/edit ~a file-name \"~a\" q~%" 
+            lift-report-file-name new-lift-path))
+  
+  ; ---- Apply velocity inlet BCs ----
+  (for-each
+    (lambda (inlet-name)
+      (display (format #f "Applying BC to: ~a~%" inlet-name))
+      (ti-menu-load-string
+        (format #f "/define/boundary-conditions/velocity-inlet ~a no yes yes no 0 yes no ~a no ~a no ~a no no yes 0.05 10~%"
+          inlet-name V_x V_y V_z)))
+    inlet-list)
+  
+  ; ---- Run the solver ----
+  (display "Running 2400 iterations...\n")
+  (ti-menu-load-string "/solve/iterate 2400")
+  
+  ; ---- Save case and data ----
+  (define case-data-name (format #f "4.3.2.1_AoA_~a.cas.h5" aoa))
+  (display (format #f "Saving case and data as: ~a~%" case-data-name))
+  (ti-menu-load-string
+    (format #f "/file/write-case-data ~a/~a yes~%" current-aoa-dir case-data-name))
+  
+  (display (format #f "AoA = ~a° complete!~%~%" aoa)))
+
+(display "~%=== AoA sweep completed successfully ===~%")
+
+; (ti-menu-load-string "/exit yes") ; Uncomment to close Fluent automatically

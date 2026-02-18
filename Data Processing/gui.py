@@ -48,7 +48,7 @@ class QueueWriter(io.TextIOBase):
 # ── Main Application ────────────────────────────────────────────────────────
 
 class CFDApp(tk.Tk):
-    COMPARISON_MODES = ["default", "turbulence", "grid", "mesh", "version", "expanded"]
+    COMPARISON_MODES = ["single", "turbulence", "grid", "mesh", "version", "expanded", "mixed"]
     EXTRACTION_METHODS = ["case_file", "folder"]
     NAMING_SCHEMAS = ["5-part", "4-part"]
 
@@ -242,7 +242,7 @@ class CFDApp(tk.Tk):
         self._derived_label.grid(row=4, column=0, columnspan=7, sticky="w", padx=4, pady=2)
 
         # ── Section: XY Data Source ──────────────────────────────────────
-        lf7 = ttk.LabelFrame(self._form, text="XY Data Source Directory (for Cp / Y+ plots, default mode only)")
+        lf7 = ttk.LabelFrame(self._form, text="XY Data Source Directory (for Cp / Y+ plots, single mode only)")
         lf7.grid(row=row, column=0, columnspan=3, sticky="ew", **pad)
         row += 1
 
@@ -346,8 +346,13 @@ class CFDApp(tk.Tk):
     def _load_defaults(self):
         """Populate the GUI fields with the current defaults from main.py."""
         try:
+            # Ensure the current directory is in sys.path so main.py can be imported
+            if str(Path(__file__).parent) not in sys.path:
+                sys.path.append(str(Path(__file__).parent))
+
             import main as _main_mod
             # Data sources
+            self.src_listbox.delete(0, "end")
             for src in _main_mod.DATA_SOURCES:
                 self.src_listbox.insert("end", str(src))
 
@@ -396,7 +401,11 @@ class CFDApp(tk.Tk):
             from config import ACTIVE_SCHEMA
             self.schema_var.set(ACTIVE_SCHEMA)
         except Exception as exc:
+            import traceback
+            traceback.print_exc()
             self._log(f"⚠ Could not load defaults from main.py: {exc}\n")
+            messagebox.showwarning("Defaults Not Loaded", 
+                                   f"Could not load default settings from main.py.\n\nError: {exc}\n\nCheck the console for details.")
 
     # ─── Button Callbacks ────────────────────────────────────────────────
 
@@ -434,11 +443,21 @@ class CFDApp(tk.Tk):
     def _update_derived_values(self):
         """Recompute and display Reference Area, Q×A, and Reynolds Number."""
         try:
-            span = float(self.span_var.get())
-            chord = float(self.chord_var.get())
-            density = float(self.density_var.get())
-            velocity = float(self.velocity_var.get())
-            viscosity = float(self.viscosity_var.get())
+            s_val = self.span_var.get()
+            c_val = self.chord_var.get()
+            d_val = self.density_var.get()
+            v_val = self.velocity_var.get()
+            mu_val = self.viscosity_var.get()
+
+            if not all([s_val, c_val, d_val, v_val, mu_val]):
+                 self._derived_label.config(text="(enter valid physics values to see derived quantities)")
+                 return
+
+            span = float(s_val)
+            chord = float(c_val)
+            density = float(d_val)
+            velocity = float(v_val)
+            viscosity = float(mu_val)
 
             ref_area = span * chord
             q = 0.5 * density * velocity ** 2
@@ -721,7 +740,7 @@ class CFDApp(tk.Tk):
         # 1. Combined CL/CD or Aerodynamic Summary plots
         coeff_dir = out_path / "coefficient_graphs"
         if coeff_dir.exists():
-            if mode == "default":
+            if mode == "single":
                 for png in sorted(coeff_dir.rglob("*_Aerodynamic_Summary.png")):
                     key_images.append(png)
                 if not key_images:

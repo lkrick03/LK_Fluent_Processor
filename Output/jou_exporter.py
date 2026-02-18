@@ -19,8 +19,8 @@ from datetime import datetime
 # ============================================================
 
 # OUTPUT SETTINGS
-export_filename = "4.6.1.2.NG.15_20"  # Filename (no .jou needed)
-export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Data_Prepartation\HPC\4.6.1.2.NG_setup"
+export_filename = "4.6.1.1.G.5_20"  # Filename (no .jou needed)
+export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Data_Prepartation\HPC\4.6.1.1.G_setup"
 
 # --- 1. Angle of Attack (AoA) Settings ---
 AOA_MODE = "List"  # Options: "Range", "List", "MultiRange"
@@ -38,15 +38,15 @@ AOA_RANGES = [
 ]
 
 # If "List":
-AOA_LIST = [15, 16, 17, 18, 19, 20]
+AOA_LIST = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
 
 # --- 2. Simulation Parameters ---
 V_MAG = 24.38      # Velocity magnitude (m/s)
-BASE_OUTPUT_DIR = "/home/ljcrick/directories/4.6.1.2.NG"
-OUTPUT_FILENAME_BASE = "4.6.1.2.NG"  # Base name for output files
+BASE_OUTPUT_DIR = "/home/ljcrick/directories/4.6.1.1.G"
+OUTPUT_FILENAME_BASE = "4.6.1.1.G"  # Base name for output files
 DRAG_REPORT_FILE = "drag-rfile"
 LIFT_REPORT_FILE = "lift-rfile"
-ITERATIONS = 4000  # Number of iterations to run
+ITERATIONS = 1200  # Number of iterations to run
 TEST_MODE = False   # If True: Updates BCs but skips Solving & Saving
 
 # --- 3. Define Zone Groups ---

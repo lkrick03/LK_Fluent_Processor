@@ -56,13 +56,14 @@ OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt
 CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
 
 # Comparison Mode
-# Options: 'default', 'turbulence', 'grid', 'mesh', 'version', 'expanded'
-# - default: Standard behavior (highest version wins).
+# Options: 'single', 'turbulence', 'grid', 'mesh', 'version', 'expanded', 'mixed'
+# - single: Standard behavior (highest version wins).
 # - turbulence: Groups by Geometry.Mesh to compare turbulence models side-by-side.
 # - grid: Groups by Geometry.Mesh.Turbulence to compare Grid vs No Grid side-by-side.
 # - mesh: Groups by Geometry.Turbulence.Grid to compare mesh types (Medium, Adapted, Fine...) side-by-side.
 # - version: Groups by Geometry.Mesh.Turbulence.Grid to compare versions (V1, V2...) side-by-side.
 # - expanded: Groups by Geometry.Mesh to calculate and compare Grid Efficiency Ratios (L/D Improvement) across turbulence models.
+# - mixed: Smart detection — groups by constant attributes, labels by whatever varies (e.g. Mesh + Turbulence).
 COMPARISON_MODE = 'mesh'
 
 # AoA Filter: Set to a list of angles (e.g., [0, 2, 4]) to only process those AoAs.
@@ -74,7 +75,7 @@ AOA_FILTER = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
 XY_DATA_SOURCE_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414.6.4.6\4.6.1.1.NG\y_plus_pressure_data")
 
 # Processing Parameters
-NUM_ITERATIONS = 150  # Number of last iterations to use for statistics
+NUM_ITERATIONS = 150  # Number of last iterations to use for statistics only if convergenc eanaylsis is turned off
 RUN_CONVERGENCE_ANALYSIS = True  # Set to False to skip convergence analysis
 CONVERGENCE_MAX_TRIM = 0.9  # Maximum fraction of data to trim (0.8 = 80%)
 CONVERGENCE_NUM_TESTS = 25  # Number of trim amounts to test
@@ -465,11 +466,11 @@ def main(config=None):
     
     # Sheet 2: Turbulence Comparison
     # Sheet 2: Turbulence / Grid Comparison
-    if _COMPARISON_MODE != 'default':
+    if _COMPARISON_MODE != 'single':
         print(f"  Creating sheet: {_COMPARISON_MODE.capitalize()} Comparison")
         create_turbulence_comparison_sheet(wb, all_data, _NUM_ITERATIONS, convergence_results, comparison_mode=_COMPARISON_MODE)
     else:
-        print("  Skipping comparison sheet (Mode: default)")
+        print("  Skipping comparison sheet (Mode: single)")
     
     # Sheet 3: Coefficients
     print("  Creating sheet: Coefficients")
@@ -477,7 +478,7 @@ def main(config=None):
     
     version_sheet_created = False
     # Only use COMPARISON_CONFIGS if explicitly in 'version' mode
-    # For 'default', 'turbulence', 'grid', 'expanded', we rely on their specific logic.
+    # For 'single', 'turbulence', 'grid', 'expanded', we rely on their specific logic.
     should_run_version_comparison = (_COMPARISON_MODE == 'version')
     
     if should_run_version_comparison:
@@ -573,7 +574,7 @@ def main(config=None):
     print("✓ Each config contains: C_L_vs_AoA.png, C_D_vs_AoA.png, C_L_C_D_Combined.png")
     
     # ==================== PART 5: GENERATING EXPORTED PLOTS (Cp, Y+) ====================
-    if _COMPARISON_MODE != 'default':
+    if _COMPARISON_MODE != 'single':
         print("\n⚠ Skipping Extra Plots (Cp, Y+, Cf) — not applicable in comparison mode.")
     else:
         print("\n" + "=" * 100)

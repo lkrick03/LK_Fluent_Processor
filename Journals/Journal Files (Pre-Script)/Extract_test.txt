@@ -1,0 +1,67 @@
+; ============================================================
+; ANSYS Fluent Post-Processing Journal — Lift, Drag & Contours
+; Reopens saved AoA cases, exports lift/drag data and contour plots
+; ============================================================
+
+(define base-output-dir "C:/Users/lukek/OneDrive/Documents/Thesis/NACA_2414_2D/Fleunt/Data/Trial")
+
+; --- List of AoAs to process ---
+(define aoa-list '(0 5))
+
+; --- List of airfoil or wall zones that contribute to lift/drag ---
+(define wall-list '("wall-enclosure-enclosure_instance_1_solid1"
+                    "wall-enclosure-enclosure_instance_20_solid1"
+                    "wall-enclosure-enclosure_instance_21_solid1"
+                    "wall-enclosure-enclosure_instance_22_solid1"
+                    "wall-enclosure-enclosure_instance_23_solid1"
+                    "wall-enclosure-enclosure_instance_24_solid1"
+                    "wall-enclosure-enclosure_instance_2_solid1"
+                    "wall-enclosure-enclosure_instance_32_solid1"
+                    "wall-enclosure-enclosure_instance_33_solid1"
+                    "wall-enclosure-enclosure_instance_34_solid1"
+                    "wall-enclosure-enclosure_instance_35_solid1"
+                    "wall-enclosure-enclosure_instance_36_solid1"
+                    "wall-enclosure-enclosure_instance_3_solid1"))
+
+; ============================================================
+; Helper to process each AoA
+; ============================================================
+(define (process-aoa aoa)
+  (define current-aoa-dir (format #f "~a/AoA_~a" base-output-dir aoa))
+  (define case-file (format #f "~a/solution.cas.h5" current-aoa-dir))
+  (display (format #f "~%=== Processing AoA = ~a°, case: ~a ===~%" aoa case-file))
+
+  ; ---- Load case and data ----
+  (ti-menu-load-string (format #f "/file/read-case-data ~a" case-file))
+
+  ; ---- Create Lift & Drag Report ----
+  (define lift-file (format #f "~a/lift_drag_AoA_~a.txt" current-aoa-dir aoa))
+  (display (format #f "Exporting Lift & Drag to: ~a~%" lift-file))
+
+  (ti-menu-load-string
+    (format #f "/report/forces/lift-drag yes ~a ~a yes 1 0"
+            lift-file
+            (string-join wall-list " ")))
+
+  ; ---- Generate velocity contour image ----
+  (display "Saving velocity contour...\n")
+  (ti-menu-load-string "/display/contour velocity-magnitude")
+  (ti-menu-load-string "/display/views/restore-view front")
+  (ti-menu-load-string "/display/views/auto-scale")
+  (ti-menu-load-string "/display/views/camera/zoom-camera 0.6")
+  (ti-menu-load-string
+    (format #f "/display/save-picture ~a/velocity_contour_AoA_~a.png" current-aoa-dir aoa))
+
+  (display (format #f "AoA = ~a° post-processing complete.~%~%" aoa))
+)
+
+; ============================================================
+; Loop through AoAs
+; ============================================================
+(for-each
+  (lambda (aoa)
+    (process-aoa aoa))
+  aoa-list)
+
+(display "~%=== Lift/Drag & Contour export completed successfully ===~%")
+; (ti-menu-load-string "/exit yes") ; Uncomment to auto-close Fluent

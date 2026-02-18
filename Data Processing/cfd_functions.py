@@ -427,7 +427,7 @@ def load_and_correct_forces(lift_file, drag_file, aoa_degrees):
     
     return true_lift.tolist(), true_drag.tolist()
 
-def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value_mappings, comparison_mode='default'):
+def load_lift_drag_data(root_dirs, config_extraction_method, position_map, value_mappings, comparison_mode='single'):
     """
     Load lift and drag force data from multiple source directories.
     Implements 'Highest Version Wins' strategy for duplicates, unless comparing versions.
@@ -792,13 +792,109 @@ def extract_aoa_number(aoa_string):
         return 0
 
 
+
 def get_simulation_family_name(config_string):
     """Collapse config identifiers so variants that only differ by version share one table."""
-    # This is legacy/default behavior (groups by Geom.Mesh.Turb.Grid, ignoring Version)
-    return get_grouping_key(config_string, mode='default')
+    # This is legacy/single behavior (groups by Geom.Mesh.Turb.Grid, ignoring Version)
+    return get_grouping_key(config_string, mode='single')
 
 
-def get_grouping_key(config_string, mode='default'):
+def detect_varying_attributes(all_data):
+    """
+    Analyze all loaded configurations and determine which attributes vary.
+    
+    Returns a dict with keys 'geometry', 'mesh', 'turbulence', 'grid'
+    mapping to True if that attribute has more than one unique value.
+    Also returns the sets of unique values for each attribute.
+    
+    Example return:
+        {'varies': {'geometry': False, 'mesh': True, 'turbulence': True, 'grid': False},
+         'unique': {'geometry': {'4.3'}, 'mesh': {'1','2'}, 'turbulence': {'3','5'}, 'grid': {'NG'}}}
+    """
+    geoms = set()
+    meshes = set()
+    turbs = set()
+    grids = set()
+    
+    for (config, aoa), data in all_data.items():
+        geoms.add(data.get('geometry', 'Unknown'))
+        meshes.add(data.get('mesh', 'Unknown'))
+        turbs.add(data.get('turbulence_model', 'Unknown'))
+        grids.add(data.get('grid', 'Unknown'))
+    
+    return {
+        'varies': {
+            'geometry': len(geoms) > 1,
+            'mesh': len(meshes) > 1,
+            'turbulence': len(turbs) > 1,
+            'grid': len(grids) > 1,
+        },
+        'unique': {
+            'geometry': geoms,
+            'mesh': meshes,
+            'turbulence': turbs,
+            'grid': grids,
+        }
+    }
+
+
+def get_mixed_group_key(config_string, varying_info):
+    """
+    Generate a grouping key for mixed mode based on CONSTANT attributes.
+    
+    Configs are grouped by whatever is constant so that varying attributes
+    end up as separate series on the same graph.
+    """
+    if not config_string:
+        return config_string
+    
+    parts = config_string.split('.')
+    if len(parts) < 3:
+        return config_string
+    
+    geom = parts[0]
+    mesh = parts[1] if len(parts) > 1 else '?'
+    turb = parts[2] if len(parts) > 2 else '?'
+    
+    # Detect grid - it's always the last part if it's 'NG' or 'G'
+    grid_part = None
+    if parts[-1] in {'NG', 'G'}:
+        grid_part = parts[-1]
+    
+    varies = varying_info['varies']
+    
+    # Build key from constant attributes only
+    key_parts = [geom]  # geometry is almost always the anchor
+    if not varies['mesh']:
+        key_parts.append(mesh)
+    if not varies['turbulence']:
+        key_parts.append(turb)
+    if not varies['grid'] and grid_part:
+        key_parts.append(grid_part)
+    
+    return '.'.join(key_parts) if key_parts else geom
+
+
+def get_mixed_series_label(data, varying_info):
+    """
+    Generate a concise series label for mixed mode showing only the VARYING attributes.
+    
+    Example: if only Mesh and Turbulence vary -> "Medium | k-ω SST"
+             if only Grid varies -> "No Grid"
+    """
+    varies = varying_info['varies']
+    label_parts = []
+    
+    if varies['mesh']:
+        label_parts.append(data.get('mesh', '?'))
+    if varies['turbulence']:
+        label_parts.append(data.get('turbulence_model', '?'))
+    if varies['grid']:
+        label_parts.append(data.get('grid', '?'))
+    
+    return ' | '.join(label_parts) if label_parts else data.get('turbulence_model', 'Unknown')
+
+def get_grouping_key(config_string, mode='single'):
     """
     Generate a grouping key for the configuration based on the comparison mode.
     
@@ -807,7 +903,7 @@ def get_grouping_key(config_string, mode='default'):
     - 'grid': Group by Geom.Mesh.Turb (ignores Grid, Version) -> comparables are Grid
     - 'mesh': Group by Geom.Turb.Grid (ignores Mesh, Version) -> comparables are Mesh
     - 'version': Group by Geom.Mesh.Turb.Grid (fully specific) -> comparables are Version
-    - 'default': Group by Geom.Mesh.Turb.Grid (ignores Version)
+    - 'single': Group by Geom.Mesh.Turb.Grid (ignores Version)
     """
     if not config_string:
         return config_string
@@ -846,6 +942,10 @@ def get_grouping_key(config_string, mode='default'):
          # Expanded mode: Group by Geom.Mesh ONLY (exclude grid)
          # so that G and NG end up in the same family for pairing
          return f"{geom}.{mesh}"
+    elif mode == 'mixed':
+        # Mixed Mode: Group by Geometry (common denominator)
+        # All other variations (Mesh, Turb, Grid) will be in the legend
+        return geom
     elif mode == 'version':
         # Group by everything except version (which is key)
         # But actually for version comparison, we want the table to be "4.3.1.NG" 
@@ -853,8 +953,8 @@ def get_grouping_key(config_string, mode='default'):
         # Family is "4.3.1.NG"
         return f"{geom}.{mesh}.{turb}.{grid_part}" if grid_part else f"{geom}.{mesh}.{turb}"
         
-    else: # default
-        # Default behavior: "4.3.1.NG" (Agostic of version)
+    else: # single
+        # Single behavior: "4.3.1.NG" (Agnostic of version)
         return f"{geom}.{mesh}.{turb}.{grid_part}" if grid_part else f"{geom}.{mesh}.{turb}"
 
 
@@ -1251,6 +1351,10 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         sheet_title = 'Grid Comparison'
     elif comparison_mode == 'mesh':
         sheet_title = 'Mesh Comparison'
+    elif comparison_mode == 'expanded':
+        sheet_title = 'Grid Efficiency Comparison'
+    elif comparison_mode == 'mixed':
+        sheet_title = 'Mixed Comparison'
         
     ws = wb.create_sheet(title=sheet_title)
     
@@ -1291,9 +1395,15 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
     # Group by base config and turbulence model
     comparison_data = defaultdict(lambda: defaultdict(dict))
     
+    # For mixed mode, pre-compute which attributes vary
+    varying_info = detect_varying_attributes(all_data) if comparison_mode == 'mixed' else None
+    
     # Determine what is the "Column Header" (Sim Type) and what is the "Row Group" (Family)
     for (config, aoa), data in all_data.items():
-        base_config = get_grouping_key(config, mode=comparison_mode)
+        if comparison_mode == 'mixed':
+            base_config = get_mixed_group_key(config, varying_info)
+        else:
+            base_config = get_grouping_key(config, mode=comparison_mode)
         
         if comparison_mode == 'turbulence':
             # Label = Turbulence Model (e.g. SST, RNG)
@@ -1306,6 +1416,12 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         elif comparison_mode == 'mesh':
             # Label = Mesh Type (e.g. Medium, Adapted, Fine)
             sim_type = data.get('mesh', 'Unknown Mesh')
+        elif comparison_mode == 'expanded':
+             # For expanded mode, differentiate by Turb + Grid
+             sim_type = f"{data['turbulence_model']} ({data.get('grid','')})"
+        elif comparison_mode == 'mixed':
+             # Smart labels: only show attributes that actually vary
+             sim_type = get_mixed_series_label(data, varying_info)
         else:
             sim_type = data['turbulence_model']
         
@@ -1572,7 +1688,7 @@ def create_version_comparison_sheet(
     num_iterations,
     convergence_results,
     q_times_a,
-    comparison_mode='default'
+    comparison_mode='single'
 ):
     """Create a sheet that compares configured version pairs. Returns True if created."""
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -2193,7 +2309,7 @@ def apply_excel_formatting(excel_file):
 
 # ==================== PLOTTING FUNCTIONS ====================
 
-def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_map, value_mappings, comparison_mode='default', max_cov_threshold=None):
+def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_map, value_mappings, comparison_mode='single', max_cov_threshold=None):
     """Create all coefficient graphs organized by comparison family."""
     
     import itertools
@@ -2213,9 +2329,15 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
     graphs_data = defaultdict(lambda: defaultdict(list))
     graphs_data_by_grid = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # For expanded
     
+    # For mixed mode, pre-compute which attributes vary
+    varying_info = detect_varying_attributes(all_data) if comparison_mode == 'mixed' else None
+    
     for (config, aoa), coeff in coefficient_data.items():
         # Family: The common denominator (e.g., Geometry + Mesh)
-        family = get_grouping_key(config, mode=comparison_mode)
+        if comparison_mode == 'mixed':
+            family = get_mixed_group_key(config, varying_info)
+        else:
+            family = get_grouping_key(config, mode=comparison_mode)
         grid_status = get_grid_status(config)
         turb_model = coeff.get('turbulence_model', 'Unknown')
         
@@ -2237,7 +2359,11 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
             org_data = all_data.get((config, aoa), {})
             ver = org_data.get('version', 'V?')
             series_label = f"{ver}"
-        else:  # default
+        elif comparison_mode == 'mixed':
+            # Smart labels: only show attributes that actually vary
+            org_data = all_data.get((config, aoa), {})
+            series_label = get_mixed_series_label(org_data, varying_info)
+        else:  # single
             series_label = turb_model
 
         graphs_data[family][series_label].append(coeff_with_grid)
@@ -2325,8 +2451,8 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
                 if plot_items:
                     _plot_standard_aerodynamics(plot_items, comp_dir, f'{family} - {turb_name}', max_cov_threshold)
         
-        else:
-            # Standard comparison (all series on one graph)
+        elif comparison_mode != 'single':
+            # Standard comparison (all series on one graph) — skip in single mode
             comp_dir = output_dir / "coefficient_graphs" / "Comparison" / family
             comp_dir.mkdir(parents=True, exist_ok=True)
             
@@ -2359,8 +2485,8 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
             if plot_items:
                 # Determine title
                 plot_title = family
-                if comparison_mode == 'default':
-                    # In default mode, 'family' is config string (e.g. 4.3.2.NG).
+                if comparison_mode == 'single':
+                    # In single mode, 'family' is config string (e.g. 4.3.2.NG).
                     # All series have same turbulence model.
                     # Get it from first item of first series
                     try:
@@ -2733,6 +2859,9 @@ def plot_convergence_summary(convergence_results, all_data, output_dir, comparis
     # 1. Organize data by Family -> SimType -> AoA
     summary_data = defaultdict(lambda: defaultdict(dict))
     
+    # For mixed mode, pre-compute which attributes vary
+    varying_info = detect_varying_attributes(all_data) if comparison_mode == 'mixed' else None
+
     for (config, aoa), results in convergence_results.items():
         # Get data entry
         data = all_data.get((config, aoa))
@@ -2762,10 +2891,15 @@ def plot_convergence_summary(convergence_results, all_data, output_dir, comparis
             # Group by Geom.Turb.Grid (so Mesh varies)
             base_family = get_grouping_key(config, mode='mesh')
             sim_type = data.get('mesh', 'Unknown Mesh')
+
+        elif comparison_mode == 'mixed':
+            # Smart grouping: group by constant attributes, label by varying ones
+            base_family = get_mixed_group_key(config, varying_info)
+            sim_type = get_mixed_series_label(data, varying_info)
             
         else:
-            base_family = get_grouping_key(config, mode='default')
-            sim_type = "Default"
+            base_family = get_grouping_key(config, mode='single')
+            sim_type = "Single"
 
         # Extract metrics
         # Lift COV

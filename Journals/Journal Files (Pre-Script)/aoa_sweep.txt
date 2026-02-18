@@ -1,0 +1,105 @@
+; Ansys Fluent Journal File - Change AoA by modifying velocity components (3D Case)
+; This script varies the angle of attack by changing velocity inlet components
+
+; ===== OUTPUT DIRECTORY =====
+; Set your main output directory here (use forward slashes even on Windows)
+(define base-output-dir "C:/Fluent_Results/AoA_Study")
+; Example Windows: "C:/Users/YourName/Documents/Fluent_Results"
+; Example Linux: "/home/username/fluent_results"
+
+; Define parameters
+(define V_mag 10.0)  ; Magnitude of velocity in m/s
+(define aoa_start 0)  ; Starting angle of attack in degrees
+(define aoa_end 15)   ; Ending angle of attack in degrees
+(define aoa_step 5)   ; Step size for AoA in degrees
+
+; Define your inlet boundary names in a list
+(define inlet-list '("inlet-1" "inlet-2" "inlet-3"))
+; Or use: (define inlet-list '("inlet*")) to match all inlets with wildcard
+
+; Convert degrees to radians
+(define (deg-to-rad deg)
+  (* deg (/ 3.14159265359 180.0)))
+
+; Function to create directory if it doesn't exist
+(define (ensure-directory dir-path)
+  (if (not (directory? dir-path))
+    (system (format #f "mkdir -p ~a" dir-path))))  ; Use "mkdir" for Windows, "mkdir -p" for Linux/Mac
+
+; Create base output directory
+(ensure-directory base-output-dir)
+
+; Loop through angles of attack
+(do ((aoa aoa_start (+ aoa aoa_step)))
+    ((> aoa aoa_end))
+  
+  ; Create folder for this AoA
+  (define current-aoa-dir (format #f "~a/AoA_~a" base-output-dir aoa))
+  (ensure-directory current-aoa-dir)
+  
+  ; Calculate velocity components (3D: X is streamwise, Y is vertical, Z is spanwise)
+  (define aoa_rad (deg-to-rad aoa))
+  (define V_x (* V_mag (cos aoa_rad)))
+  (define V_y (* V_mag (sin aoa_rad)))
+  (define V_z 0.0)  ; Z-component (change if needed for sideslip angle)
+  
+  ; Display current angle
+  (display (format #f "~%Running simulation for AoA = ~a degrees~%" aoa))
+  (display (format #f "Saving results to: ~a~%" current-aoa-dir))
+  (display (format #f "Velocity components: Vx = ~a m/s, Vy = ~a m/s, Vz = ~a m/s~%" V_x V_y V_z))
+  
+  ; Apply velocity to all inlets in the list
+  (for-each
+    (lambda (inlet-name)
+      (display (format #f "Setting velocity for ~a~%" inlet-name))
+      (ti-menu-load-string 
+        (format #f "/define/boundary-conditions/velocity-inlet ~a yes no ~a no ~a no ~a no no no no no~%" 
+                inlet-name V_x V_y V_z)))
+    inlet-list)
+  
+  ; Initialize solution (optional - comment out if continuing from previous solution)
+  ; (ti-menu-load-string "/solve/initialize/initialize-flow yes")
+  
+  ; Set up force monitors to track Cl and Cd during iterations
+  ; Replace "wall" with your airfoil wall boundary name
+  (ti-menu-load-string 
+    (format #f "/solve/monitors/force/set-lift-monitor lift-monitor wall () yes yes ~a/lift.txt 1 yes flow yes 0 1 0~%" current-aoa-dir))
+  (ti-menu-load-string 
+    (format #f "/solve/monitors/force/set-drag-monitor drag-monitor wall () yes yes ~a/drag.txt 1 yes flow yes 1 0 0~%" current-aoa-dir))
+  
+  ; Run calculation
+  (ti-menu-load-string "/solve/iterate 100")
+  
+  ; ===== DATA SAVING OPTIONS =====
+  
+  ; 1. Save complete case and data file (can be reopened in Fluent)
+  (ti-menu-load-string 
+    (format #f "/file/write-case-data ~a/solution.cas.h5 yes~%" current-aoa-dir))
+  
+  ; 2. Export force coefficients (Cl, Cd, Cm) - final summary
+  ; Replace "wall" with your actual wall boundary name
+  (ti-menu-load-string 
+    (format #f "/report/forces/wall-forces yes ~a/forces_summary.txt wall () yes~%" current-aoa-dir))
+  
+  ; 3. Create and save velocity magnitude contour zoomed on airfoil
+  (ti-menu-load-string "/display/objects/delete contour*")
+  (ti-menu-load-string 
+    (format #f "/display/objects/create contour velocity-contour field velocity-magnitude surfaces-list wall () coloring banded~%"))
+  
+  ; Set view to zoom on airfoil (adjust these values based on your geometry)
+  ; These values create a view centered on the airfoil
+  (ti-menu-load-string "/display/views/restore-view front")
+  (ti-menu-load-string "/display/views/auto-scale")
+  
+  ; Save velocity contour image
+  (ti-menu-load-string 
+    (format #f "/display/views/camera/zoom-camera 0.5~%"))  ; Adjust zoom factor as needed (0.5 = 50% zoom out, 2.0 = 200% zoom in)
+  (ti-menu-load-string 
+    (format #f "/display/save-picture ~a/velocity_contour.png~%" current-aoa-dir))
+)
+
+; Display completion message
+(display "~%AoA sweep completed!~%")
+
+; Exit Fluent (optional - uncomment if you want to close Fluent after completion)
+; (ti-menu-load-string "/exit yes")
