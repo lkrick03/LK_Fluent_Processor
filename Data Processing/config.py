@@ -9,7 +9,7 @@ Configuration settings for CFD Data Processing.
 NAMING_SCHEMAS = {
     # For configs like: 4.3.1.3.NG (5 parts with grid suffix)
     '5-part': {
-        'geometry': 0,       # Index 0: Geometry number
+        'velocity': 0,       # Index 0: Velocity number
         'mesh': 1,           # Index 1: Mesh number
         'turbulence': 2,     # Index 2: Turbulence model number
         'version': 3,        # Index 3: Version number
@@ -17,7 +17,7 @@ NAMING_SCHEMAS = {
     },
     # For configs like: 4.3.1.2 (4 parts, no grid suffix)
     '4-part': {
-        'geometry': 0,       # Index 0: Geometry number
+        'velocity': 0,       # Index 0: Velocity number
         'mesh': 1,           # Index 1: Mesh number
         'turbulence': 2,     # Index 2: Turbulence model number
         'version': 3,        # Index 3: Version number
@@ -33,17 +33,17 @@ POSITION_MAP = NAMING_SCHEMAS[ACTIVE_SCHEMA]
 
 # Value Mappings
 VALUE_MAPPINGS = {
-    'geometry': {
-        3: '2414_006_003',
-        4: '2414_006_004',
+    'velocity': {
+        4: '24.38',
+        5: '14.3773',
     },
     'mesh': {
         1: 'OLD',
         2: 'OLD',
-        3: 'Medium',
+        3: 'Y+ 30',
         4: 'Adapted',
         5: 'Unstrucutred',
-        6: 'Fine'
+        6: 'Y+ 5'
     },
     'turbulence': {
         1: 'K-Omega SST',
@@ -54,6 +54,10 @@ VALUE_MAPPINGS = {
         1: 'V1',
         2: 'V2',
         3: 'V3',
+        4: 'V4',
+        5: 'V5',
+        6: 'V6',
+        7: 'V7',
     },
     'grid': {
         'NG': 'No Grid',

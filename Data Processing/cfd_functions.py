@@ -17,8 +17,30 @@ from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 
 # ==================== PLOTTING CONSTANTS & STYLING ====================
 
+# Presentation Mode: set to True for larger fonts/markers suitable for projectors
+PRESENTATION_MODE = False
+
 def set_plot_style():
-    """Configure professional academic plot styles for Matplotlib."""
+    """Configure professional academic plot styles for Matplotlib.
+    
+    When PRESENTATION_MODE is True, font sizes, line widths, and marker sizes
+    are scaled up for readability on projectors and large screens.
+    """
+    if PRESENTATION_MODE:
+        _fonts = {'base': 24, 'title': 30, 'label': 26, 'legend': 22, 'tick': 22}
+        _line_width = 3.0
+        _marker_size = 12
+        _cap_size = 5
+        _grid_lw = 0.8
+        _spine_lw = 1.5
+    else:
+        _fonts = {'base': 15, 'title': 18, 'label': 16, 'legend': 14, 'tick': 14}
+        _line_width = 1.8
+        _marker_size = 7
+        _cap_size = 3
+        _grid_lw = 0.5
+        _spine_lw = 1.0
+
     plt.rcParams.update({
         # High-res output
         'figure.dpi': 300,
@@ -27,20 +49,20 @@ def set_plot_style():
         # Typography
         'font.family': 'sans-serif',
         'font.sans-serif': ['Arial', 'Helvetica', 'DejaVu Sans'],
-        'font.size': 11,
-        'axes.titlesize': 14,
+        'font.size': _fonts['base'],
+        'axes.titlesize': _fonts['title'],
         'axes.titleweight': 'bold',
-        'axes.labelsize': 12,
-        'legend.fontsize': 10,
-        'xtick.labelsize': 10,
-        'ytick.labelsize': 10,
+        'axes.labelsize': _fonts['label'],
+        'legend.fontsize': _fonts['legend'],
+        'xtick.labelsize': _fonts['tick'],
+        'ytick.labelsize': _fonts['tick'],
         
         # Grid & Ticks
         'axes.grid': True,
         'axes.grid.which': 'both',
         'grid.alpha': 0.3,
         'grid.linestyle': '--',
-        'grid.linewidth': 0.5,
+        'grid.linewidth': _grid_lw,
         'axes.axisbelow': True,
         'xtick.direction': 'in',
         'ytick.direction': 'in',
@@ -48,14 +70,14 @@ def set_plot_style():
         'ytick.right': True,
         
         # Spine aesthetics
-        'axes.linewidth': 1.0,
+        'axes.linewidth': _spine_lw,
         'axes.spines.top': True,
         'axes.spines.right': True,
         
         # Markers & Lines
-        'lines.linewidth': 1.8,
-        'lines.markersize': 7,
-        'errorbar.capsize': 3,
+        'lines.linewidth': _line_width,
+        'lines.markersize': _marker_size,
+        'errorbar.capsize': _cap_size,
     })
 
 # Academic color palette
@@ -149,14 +171,15 @@ def plot_xy_series(df, title, xlabel, ylabel, output_path, invert_y=False):
         print(f"  Warning: Empty dataframe for {title}, skipping plot.")
         return
 
-    plt.figure(figsize=(10, 6))
+    set_plot_style()
+    plt.figure(figsize=(16, 9))
     
     # Scatter plot for data points (handles disjoint surfaces better than line plot)
     plt.plot(df['x'], df['y'], 'o', markersize=2, alpha=0.6, color='black', label='Data Points')
     
-    plt.title(title, fontsize=14, fontweight='bold')
-    plt.xlabel(xlabel, fontsize=12)
-    plt.ylabel(ylabel, fontsize=12)
+    plt.title(title, fontweight='bold')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.grid(True, alpha=0.3)
     
     if invert_y:
@@ -170,49 +193,462 @@ def plot_xy_series(df, title, xlabel, ylabel, output_path, invert_y=False):
     plt.close()
 
 
+def read_fluent_residuals(filepath):
+    """
+    Parses residual data from either:
+      - Fluent .xy format (labeled ``((xy/key/label ...))`` blocks)
+      - Tab-separated CSV with a header row (from Scheme export)
 
-# ==================== PLOTTING CONSTANTS & STYLING ====================
+    Returns:
+        dict: { label_str: pd.DataFrame with columns ['iteration', 'residual'] }
+              Empty dict on failure.
+    """
+    import re as _re
+    blocks = {}
 
-def set_plot_style():
-    """Configure professional academic plot styles for Matplotlib."""
-    plt.rcParams.update({
-        # High-res output
-        'figure.dpi': 300,
-        'savefig.dpi': 300,
+    try:
+        with open(filepath, 'r') as f:
+            first_line = f.readline().strip()
+            f.seek(0)  # rewind
+
+            # --- CSV / TSV format (header row starts with "iteration") ---
+            if first_line.lower().startswith('iteration'):
+                import io
+                raw = f.read()
+                # Normalize: replace literal two-char \t sequences with real tabs
+                raw = raw.replace(chr(92) + 't', chr(9))
+                df = pd.read_csv(io.StringIO(raw), sep=chr(9))
+                # Drop rows where ALL residual columns are zero (empty buffer slots)
+                residual_cols = [c for c in df.columns if c.lower() != 'iteration']
+                for col in residual_cols:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                df.iloc[:, 0] = pd.to_numeric(df.iloc[:, 0], errors='coerce')
+                df = df.dropna()
+                mask = df[residual_cols].abs().sum(axis=1) > 0
+                df = df[mask]
+                # Sort by iteration ascending (residual-history outputs newest first)
+                df = df.sort_values(df.columns[0]).reset_index(drop=True)
+                for col in residual_cols:
+                    blocks[col] = pd.DataFrame({
+                        'iteration': df.iloc[:, 0],
+                        'residual': df[col]
+                    })
+                return blocks
+
+            # --- Fluent .xy block format ---
+            current_label = None
+            current_data = []
+
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+
+                if line.startswith('((xy/key/label'):
+                    if current_label and current_data:
+                        blocks[current_label] = pd.DataFrame(
+                            current_data, columns=['iteration', 'residual']
+                        )
+                    m = _re.search(r'"([^"]+)"', line)
+                    current_label = m.group(1) if m else f"series_{len(blocks)}"
+                    current_data = []
+                    continue
+
+                if line == ')' and current_label is not None:
+                    if current_data:
+                        blocks[current_label] = pd.DataFrame(
+                            current_data, columns=['iteration', 'residual']
+                        )
+                    current_label = None
+                    current_data = []
+                    continue
+
+                if line.startswith('('):
+                    continue
+
+                if current_label is not None:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        try:
+                            current_data.append((float(parts[0]), float(parts[1])))
+                        except ValueError:
+                            continue
+
+            if current_label and current_data:
+                blocks[current_label] = pd.DataFrame(
+                    current_data, columns=['iteration', 'residual']
+                )
+
+    except Exception as e:
+        print(f"Error reading residual file {filepath}: {e}")
+
+    return blocks
+
+
+def plot_residuals(residual_data, title, output_path, max_iters=None):
+    """
+    Plot residual convergence curves on a log-scale Y axis.
+
+    Args:
+        residual_data: dict from read_fluent_residuals { label: DataFrame }
+        title: plot title string
+        output_path: file path to save the figure
+        max_iters: (optional) maximum number of newest iterations to include
+    """
+    if not residual_data:
+        print(f"  Warning: No residual data for {title}, skipping plot.")
+        return
+
+    set_plot_style()
+    fig, ax = plt.subplots(figsize=(16, 9))
+
+    # Find the maximum iteration across all series to identify the end of the *current* run
+    global_max = 0
+    for df in residual_data.values():
+        if len(df) > 0:
+            global_max = max(global_max, df['iteration'].max())
+
+    for idx, (label, df) in enumerate(residual_data.items()):
+        if max_iters is not None and len(df) > 0:
+            # Fluent residual-history is often a compressed buffer (e.g. 700 rows spanning 5000 iterations)
+            # Find the actual max iteration in this data, and only keep rows where iteration > (max - max_iters)
+            # Use global_max so all residual curves are cropped to the exact same starting point
+            min_allowed = global_max - max_iters
+            df = df[df['iteration'] > min_allowed]
+            
+        if len(df) == 0:
+            continue
+            
+        color = ACADEMIC_COLORS[idx % len(ACADEMIC_COLORS)]
         
-        # Typography
-        'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial', 'Helvetica', 'DejaVu Sans'],
-        'font.size': 11,
-        'axes.titlesize': 14,
-        'axes.titleweight': 'bold',
-        'axes.labelsize': 12,
-        'legend.fontsize': 10,
-        'xtick.labelsize': 10,
-        'ytick.labelsize': 10,
-        
-        # Grid & Ticks
-        'axes.grid': True,
-        'axes.grid.which': 'both',
-        'grid.alpha': 0.3,
-        'grid.linestyle': '--',
-        'grid.linewidth': 0.5,
-        'axes.axisbelow': True,
-        'xtick.direction': 'in',
-        'ytick.direction': 'in',
-        'xtick.top': True,
-        'ytick.right': True,
-        
-        # Spine aesthetics
-        'axes.linewidth': 1.0,
-        'axes.spines.top': True,
-        'axes.spines.right': True,
-        
-        # Markers & Lines
-        'lines.linewidth': 1.8,
-        'lines.markersize': 7,
-        'errorbar.capsize': 3,
-    })
+        # Plot only the data points (filter out history zeros if they exist)
+        # We don't need to manually trim here anymore, pandas/matplotlib handles it
+        ax.semilogy(df['iteration'], df['residual'],
+                     color=color, label=label, linewidth=1.0, alpha=0.85)
+
+    ax.set_title(title, fontweight='bold')
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('Residual')
+    
+    # Force X-axis limits to match the actual residual data span we parsed
+    # We want to tightly frame the cropped portion
+    if max_iters is not None and global_max > max_iters:
+        ax.set_xlim(global_max - max_iters, global_max)
+    else:
+        global_min = min([df['iteration'].min() for df in residual_data.values() if len(df) > 0], default=0)
+        if global_max > global_min:
+            ax.set_xlim(global_min, global_max)
+
+    ax.legend(loc='best')
+    ax.grid(True, which='both', alpha=0.3)
+
+    plt.tight_layout()
+    try:
+        plt.savefig(output_path, dpi=300)
+    except Exception as e:
+        print(f"  Error saving residual plot to {output_path}: {e}")
+    plt.close()
+
+
+def plot_xy_comparison(series_list, title, xlabel, ylabel, output_path, invert_y=False):
+    """
+    Overlays multiple XY series on the same plot for comparison.
+
+    Args:
+        series_list: list of dicts, each with:
+            'df': pd.DataFrame with columns ['x', 'y']
+            'label': str legend label for this series
+        title, xlabel, ylabel, output_path, invert_y: same as plot_xy_series.
+    """
+    if not series_list:
+        return
+
+    set_plot_style()
+    plt.figure(figsize=(16, 9))
+
+    colors = ACADEMIC_COLORS
+    markers = ['o', 's', '^', 'D', 'v', 'p', 'P', '*']
+
+    for idx, series in enumerate(series_list):
+        df = series['df']
+        label = series.get('label', f'Series {idx+1}')
+        if df.empty:
+            continue
+        c = colors[idx % len(colors)]
+        m = markers[idx % len(markers)]
+        plt.plot(df['x'], df['y'], marker=m, markersize=2, alpha=0.7,
+                 color=c, label=label, linestyle='none')
+
+    plt.title(title, fontweight='bold')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.grid(True, alpha=0.3)
+    plt.legend(loc='best')
+
+    if invert_y:
+        plt.gca().invert_yaxis()
+
+    plt.tight_layout()
+    try:
+        plt.savefig(output_path, dpi=300)
+    except Exception as e:
+        print(f"  Error saving comparison plot to {output_path}: {e}")
+    plt.close()
+
+
+# ==================== PATHLINE DATA FUNCTIONS ====================
+
+def read_fluent_fvp(filepath):
+    """
+    Parse a FIELDVIEW .fvp pathline file exported by Fluent.
+
+    FIELDVIEW 'standard' (.fvp) format from Fluent's
+    ``/display/path-lines/write-to-files`` command is ASCII with the
+    following typical structure:
+
+        FVPARTICLES
+        1 1                     ← version line
+        <num_vars>              ← number of scalar fields per point
+        <var_name_1>
+        ...
+        <num_particles>
+        <points_in_particle_1>
+        x y z s1 s2 ...         ← one line per point
+        ...
+        <points_in_particle_2>
+        ...
+
+    If the file does not match this exact layout (e.g., a different
+    Fluent version), the parser falls back to a simpler heuristic that
+    treats every line with 4+ numeric columns as ``x, y, z, scalar``
+    data.
+
+    Returns:
+        dict  – ``{particle_id: pd.DataFrame}`` where each DataFrame
+                has columns ``['x', 'y', 'z', <var_names...>]``.
+                Returns an empty dict on failure.
+    """
+    particles = {}
+
+    try:
+        with open(filepath, 'r') as f:
+            lines = f.readlines()
+
+        if not lines:
+            return particles
+
+        # --- Try structured FVPARTICLES format ---------------------------
+        idx = 0
+        # Skip blank / comment lines at the top
+        while idx < len(lines) and (lines[idx].strip() == '' or lines[idx].strip().startswith(('!', '#'))):
+            idx += 1
+
+        if idx < len(lines) and lines[idx].strip().upper().startswith('FVPARTICLE'):
+            idx += 1  # skip 'FVPARTICLES' header
+
+            # Version line (e.g. "1 1")
+            if idx < len(lines):
+                idx += 1
+
+            # Number of scalar variables
+            if idx >= len(lines):
+                return particles
+            num_vars = int(lines[idx].strip())
+            idx += 1
+
+            # Read variable names
+            var_names = []
+            for _ in range(num_vars):
+                if idx < len(lines):
+                    var_names.append(lines[idx].strip().replace('-', '_'))
+                    idx += 1
+
+            # Number of particles
+            if idx >= len(lines):
+                return particles
+            num_particles = int(lines[idx].strip())
+            idx += 1
+
+            for pid in range(num_particles):
+                if idx >= len(lines):
+                    break
+                num_points = int(lines[idx].strip())
+                idx += 1
+
+                points = []
+                for _ in range(num_points):
+                    if idx >= len(lines):
+                        break
+                    vals = lines[idx].strip().split()
+                    idx += 1
+                    if len(vals) >= 3 + num_vars:
+                        row = {
+                            'x': float(vals[0]),
+                            'y': float(vals[1]),
+                            'z': float(vals[2]),
+                        }
+                        for vi, vn in enumerate(var_names):
+                            row[vn] = float(vals[3 + vi])
+                        points.append(row)
+
+                if points:
+                    particles[pid] = pd.DataFrame(points)
+
+            return particles
+
+        # --- Fallback: generic numeric-line parser -----------------------
+        # Treat every line with ≥4 numbers as (x, y, z, scalar...).
+        # Separate particles when a non-numeric separator line appears.
+        current_points = []
+        pid = 0
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith(('!', '#', '(')):
+                # separator / header → flush current particle
+                if current_points:
+                    cols = ['x', 'y', 'z'] + [f'var_{i}' for i in range(len(current_points[0]) - 3)]
+                    particles[pid] = pd.DataFrame(current_points, columns=cols)
+                    pid += 1
+                    current_points = []
+                continue
+
+            parts = stripped.split()
+            try:
+                vals = [float(v) for v in parts]
+                if len(vals) >= 3:
+                    current_points.append(vals)
+            except ValueError:
+                # non-numeric line → flush
+                if current_points:
+                    cols = ['x', 'y', 'z'] + [f'var_{i}' for i in range(len(current_points[0]) - 3)]
+                    particles[pid] = pd.DataFrame(current_points, columns=cols)
+                    pid += 1
+                    current_points = []
+
+        # Flush remaining
+        if current_points:
+            cols = ['x', 'y', 'z'] + [f'var_{i}' for i in range(len(current_points[0]) - 3)]
+            particles[pid] = pd.DataFrame(current_points, columns=cols)
+
+    except Exception as e:
+        print(f"Error reading FVP file {filepath}: {e}")
+
+    return particles
+
+
+def plot_pathlines(pathline_data, title, output_path, color_by=None, chord=None):
+    """
+    Plot 2D pathline traces (X vs Y) coloured by a scalar variable.
+
+    Args:
+        pathline_data: dict {pid: DataFrame} as returned by read_fluent_fvp.
+        title: plot title string.
+        output_path: file path to save the figure.
+        color_by: column name to colour by (e.g. 'velocity_magnitude').
+                  If None or not found, all paths are drawn in black.
+        chord: optional chord length for normalising x-axis.
+    """
+    if not pathline_data:
+        print(f"  Warning: No pathline data for {title}, skipping plot.")
+        return
+
+    set_plot_style()
+    fig, ax = plt.subplots(figsize=(16, 9))
+
+    # Collect global scalar range for consistent colouring
+    all_scalar = []
+    if color_by:
+        for df in pathline_data.values():
+            if color_by in df.columns:
+                all_scalar.extend(df[color_by].tolist())
+
+    use_colormap = bool(all_scalar)
+    if use_colormap:
+        import matplotlib.colors as mcolors
+        norm = mcolors.Normalize(vmin=min(all_scalar), vmax=max(all_scalar))
+        cmap = plt.cm.viridis
+
+    for pid, df in pathline_data.items():
+        x = df['x'] / chord if chord else df['x']
+        y = df['y'] / chord if chord else df['y']
+
+        if use_colormap and color_by in df.columns:
+            sc = ax.scatter(x, y, c=df[color_by], cmap=cmap, norm=norm,
+                            s=1, alpha=0.7, zorder=2)
+        else:
+            ax.plot(x, y, color='black', linewidth=0.5, alpha=0.5)
+
+    # Colorbar
+    if use_colormap:
+        cbar = fig.colorbar(sc, ax=ax, pad=0.02)
+        cbar_label = color_by.replace('_', ' ').title()
+        cbar.set_label(cbar_label)
+
+    ax.set_title(title, fontweight='bold')
+    ax.set_xlabel('X / c' if chord else 'X Position (m)')
+    ax.set_ylabel('Y / c' if chord else 'Y Position (m)')
+    ax.set_aspect('equal', adjustable='datalim')
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    try:
+        plt.savefig(output_path, dpi=300)
+    except Exception as e:
+        print(f"  Error saving pathline plot to {output_path}: {e}")
+    plt.close()
+
+
+def plot_pathline_comparison(pathline_datasets, title, output_path):
+    """
+    Overlay pathlines from multiple configurations on the same plot.
+
+    Args:
+        pathline_datasets: list of dicts, each with:
+            'data': dict {pid: DataFrame} from read_fluent_fvp
+            'label': str legend label
+        title: plot title string.
+        output_path: file path to save the figure.
+    """
+    if not pathline_datasets:
+        return
+
+    set_plot_style()
+    fig, ax = plt.subplots(figsize=(16, 9))
+
+    colors = ACADEMIC_COLORS
+
+    for idx, ds in enumerate(pathline_datasets):
+        data = ds['data']
+        label = ds.get('label', f'Config {idx + 1}')
+        c = colors[idx % len(colors)]
+        label_set = False
+
+        for pid, df in data.items():
+            ax.plot(df['x'], df['y'], color=c, linewidth=0.6, alpha=0.5,
+                    label=label if not label_set else None)
+            label_set = True
+
+    ax.set_title(title, fontweight='bold')
+    ax.set_xlabel('X Position (m)')
+    ax.set_ylabel('Y Position (m)')
+    ax.set_aspect('equal', adjustable='datalim')
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc='best')
+
+    plt.tight_layout()
+    try:
+        plt.savefig(output_path, dpi=300)
+    except Exception as e:
+        print(f"  Error saving pathline comparison plot to {output_path}: {e}")
+    plt.close()
+
+
+
+# ==================== PLOTTING CONSTANTS & STYLING (DUPLICATE - kept for module ordering) ====================
+
+# NOTE: set_plot_style is defined once at the top of this file.
+# This duplicate definition is removed to avoid inconsistencies.
 
 # Academic color palette
 ACADEMIC_COLORS = [
@@ -343,14 +779,22 @@ def parse_configuration(dirpath, case_file, config_extraction_method, position_m
             aoa_number = parts[1]
     else:
         # Format 2: AoA is last numeric segment after dots (e.g., 4.3.1.3.NG.5)
-        # Split by dots and find the last purely numeric part
+        # Also handles decimal AoAs like 4.3.2.2.G.5.5 → AoA = 5.5
+        # Split by dots and find the trailing numeric part(s)
         parts = base_name.split('.')
         
         # Find last numeric part (that's the AoA)
         for i in range(len(parts) - 1, -1, -1):
             if parts[i].lstrip('-').isdigit():
-                aoa_number = parts[i]
-                config = '.'.join(parts[:i])
+                # Check if the previous part is also numeric → decimal AoA
+                # e.g. parts = [..., 'G', '5', '5'] → AoA = 5.5
+                if i >= 2 and parts[i - 1].lstrip('-').isdigit() and not parts[i - 2].lstrip('-').isdigit():
+                    # Two consecutive trailing numerics after a non-numeric part
+                    aoa_number = f"{parts[i - 1]}.{parts[i]}"
+                    config = '.'.join(parts[:i - 1])
+                else:
+                    aoa_number = parts[i]
+                    config = '.'.join(parts[:i])
                 break
         
         # If no numeric AoA found at end, this might be a different format
@@ -375,7 +819,8 @@ def parse_configuration(dirpath, case_file, config_extraction_method, position_m
         return None
 
     # Extract fields using position map
-    geometry_num = safe_get(position_map['geometry'])
+    geometry_idx = position_map.get('geometry', position_map.get('velocity'))
+    geometry_num = safe_get(geometry_idx)
     mesh_num = safe_get(position_map['mesh'])
     turbulence_num = safe_get(position_map['turbulence'])
     version_num = safe_get(position_map['version'])
@@ -398,7 +843,7 @@ def parse_configuration(dirpath, case_file, config_extraction_method, position_m
         'aoa': aoa,
         'aoa_number': float(aoa_number),
         'version_sort_key': version_num if isinstance(version_num, (int, float)) else 0,
-        'geometry': value_mappings.get('geometry', {}).get(geometry_num, f"Geometry_{geometry_num}") if geometry_num else "N/A",
+        'geometry': value_mappings.get('geometry', value_mappings.get('velocity', {})).get(geometry_num, f"Geometry_{geometry_num}") if geometry_num else "N/A",
         'mesh': value_mappings.get('mesh', {}).get(mesh_num, f"Mesh_{mesh_num}") if mesh_num else "N/A",
         'turbulence_model': value_mappings.get('turbulence', {}).get(turbulence_num, f"Turbulence_{turbulence_num}") if turbulence_num else "Unknown",
         'version': value_mappings.get('version', {}).get(version_num, f"Version_{version_num}") if version_num else "N/A",
@@ -785,10 +1230,16 @@ def compute_statistics(data):
 
 
 def extract_aoa_number(aoa_string):
-    """Extract numeric AoA from string like 'AoA_10'."""
+    """Extract numeric AoA from string like 'AoA_10' or 'AoA_5.5'.
+    
+    Returns an int when the value is whole (e.g. 10), or a float when
+    it has a fractional part (e.g. 5.5).  This keeps integer AoAs
+    backward-compatible with existing AOA_FILTER lists like [5, 6, 7].
+    """
     try:
-        return int(aoa_string.split('_')[1])
-    except:
+        val = float(aoa_string.split('_')[1])
+        return int(val) if val == int(val) else val
+    except Exception:
         return 0
 
 
@@ -900,7 +1351,7 @@ def get_grouping_key(config_string, mode='single'):
     
     Modes:
     - 'turbulence': Group by Geom.Mesh (ignores Turb, Grid, Version) -> comparables are Sidebar: Turb/Grid
-    - 'grid': Group by Geom.Mesh.Turb (ignores Grid, Version) -> comparables are Grid
+    - 'grid': Group by Geom.Mesh ONLY (exclude grid) so that G and NG end up in the same family for pairing
     - 'mesh': Group by Geom.Turb.Grid (ignores Mesh, Version) -> comparables are Mesh
     - 'version': Group by Geom.Mesh.Turb.Grid (fully specific) -> comparables are Version
     - 'single': Group by Geom.Mesh.Turb.Grid (ignores Version)
@@ -908,7 +1359,10 @@ def get_grouping_key(config_string, mode='single'):
     if not config_string:
         return config_string
         
-    parts = config_string.split('.')
+    # Strip version suffix (e.g. " (v1)") added during load for version comparison
+    clean_config = config_string.split(' (v')[0]
+        
+    parts = clean_config.split('.')
     if len(parts) < 3:
         return config_string
         
@@ -932,14 +1386,11 @@ def get_grouping_key(config_string, mode='single'):
         # This ensures graph titles and comparison families include the grid type (NG/G)
         return f"{geom}.{mesh}.{grid_part}" if grid_part else f"{geom}.{mesh}"
         
-    elif mode == 'grid':
-        # Group by Geometry + Mesh + Turbulence
-        return f"{geom}.{mesh}.{turb}" if len(parts) >= 3 else config_string
     elif mode == 'mesh':
         # Mesh mode: Group by Geom + Turbulence + Grid (mesh varies)
         return f"{geom}.{turb}.{grid_part}" if grid_part else f"{geom}.{turb}"
-    elif mode == 'expanded':
-         # Expanded mode: Group by Geom.Mesh ONLY (exclude grid)
+    elif mode == 'grid' or mode == 'family_grid':
+         # Grid / Family-Grid mode: Group by Geom.Mesh ONLY (exclude grid)
          # so that G and NG end up in the same family for pairing
          return f"{geom}.{mesh}"
     elif mode == 'mixed':
@@ -1121,20 +1572,20 @@ def plot_convergence_analysis(config, aoa, lift_data, drag_data, output_dir, max
     drag_results = analyze_convergence(np.array(drag_data), min_trim=0, max_trim=max_trim, num_tests=num_tests)
     
     # Create figure with subplots
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 9))
     
     # Plot 1: Lift Mean vs Iterations Removed
     ax1.plot(lift_results['iterations_removed'], lift_results['mean'], 'o-', linewidth=2, markersize=8, color='#1f77b4')
-    ax1.set_xlabel('Iterations Removed from Start', fontsize=12)
-    ax1.set_ylabel('Lift Mean (N)', fontsize=12)
-    ax1.set_title(f'Lift Mean Convergence\n{config} - {aoa}', fontweight='bold', fontsize=14)
+    ax1.set_xlabel('Iterations Removed from Start', fontsize=16)
+    ax1.set_ylabel('Lift Mean (N)', fontsize=16)
+    ax1.set_title(f'Lift Mean Convergence\n{config} - {aoa}', fontweight='bold', fontsize=18)
     ax1.grid(True, alpha=0.3)
     
     # Plot 2: Lift COV vs Iterations Removed
     ax2.plot(lift_results['iterations_removed'], lift_results['cov'], 'o-', linewidth=2, markersize=8, color='#ff7f0e')
-    ax2.set_xlabel('Iterations Removed from Start', fontsize=12)
-    ax2.set_ylabel('Lift COV (%)', fontsize=12)
-    ax2.set_title(f'Lift COV Convergence\n{config} - {aoa}', fontweight='bold', fontsize=14)
+    ax2.set_xlabel('Iterations Removed from Start', fontsize=16)
+    ax2.set_ylabel('Lift COV (%)', fontsize=16)
+    ax2.set_title(f'Lift COV Convergence\n{config} - {aoa}', fontweight='bold', fontsize=18)
     ax2.grid(True, alpha=0.3)
     
     # Highlight minimum COV point for lift
@@ -1142,20 +1593,20 @@ def plot_convergence_analysis(config, aoa, lift_data, drag_data, output_dir, max
     ax2.axvline(x=lift_results['iterations_removed'][min_cov_idx], color='red', linestyle='--', linewidth=2, alpha=0.7)
     ax2.text(lift_results['iterations_removed'][min_cov_idx], max(lift_results['cov']), 
              f"  Min COV\n  Remove: {lift_results['iterations_removed'][min_cov_idx]}\n  Use: {lift_results['iterations_used'][min_cov_idx]}", 
-             color='red', fontweight='bold', fontsize=9)
+             color='red', fontweight='bold', fontsize=13)
     
     # Plot 3: Drag Mean vs Iterations Removed
     ax3.plot(drag_results['iterations_removed'], drag_results['mean'], 'o-', linewidth=2, markersize=8, color='#2ca02c')
-    ax3.set_xlabel('Iterations Removed from Start', fontsize=12)
-    ax3.set_ylabel('Drag Mean (N)', fontsize=12)
-    ax3.set_title(f'Drag Mean Convergence\n{config} - {aoa}', fontweight='bold', fontsize=14)
+    ax3.set_xlabel('Iterations Removed from Start', fontsize=16)
+    ax3.set_ylabel('Drag Mean (N)', fontsize=16)
+    ax3.set_title(f'Drag Mean Convergence\n{config} - {aoa}', fontweight='bold', fontsize=18)
     ax3.grid(True, alpha=0.3)
     
     # Plot 4: Drag COV vs Iterations Removed
     ax4.plot(drag_results['iterations_removed'], drag_results['cov'], 'o-', linewidth=2, markersize=8, color='#d62728')
-    ax4.set_xlabel('Iterations Removed from Start', fontsize=12)
-    ax4.set_ylabel('Drag COV (%)', fontsize=12)
-    ax4.set_title(f'Drag COV Convergence\n{config} - {aoa}', fontweight='bold', fontsize=14)
+    ax4.set_xlabel('Iterations Removed from Start', fontsize=16)
+    ax4.set_ylabel('Drag COV (%)', fontsize=16)
+    ax4.set_title(f'Drag COV Convergence\n{config} - {aoa}', fontweight='bold', fontsize=18)
     ax4.grid(True, alpha=0.3)
     
     # Highlight minimum COV point for drag
@@ -1163,7 +1614,7 @@ def plot_convergence_analysis(config, aoa, lift_data, drag_data, output_dir, max
     ax4.axvline(x=drag_results['iterations_removed'][min_cov_idx], color='red', linestyle='--', linewidth=2, alpha=0.7)
     ax4.text(drag_results['iterations_removed'][min_cov_idx], max(drag_results['cov']), 
              f"  Min COV\n  Remove: {drag_results['iterations_removed'][min_cov_idx]}\n  Use: {drag_results['iterations_used'][min_cov_idx]}", 
-             color='red', fontweight='bold', fontsize=9)
+             color='red', fontweight='bold', fontsize=13)
     
     plt.tight_layout()
     
@@ -2302,6 +2753,372 @@ def create_optimized_statistics_sheet(wb, all_data, convergence_results, num_ite
         ws.column_dimensions[column_letter].width = adjusted_width
 
 
+def create_reference_comparison_sheet(wb, coefficient_data, reference_data):
+    """Create a sheet comparing simulation coefficients against reference data at matching AoAs.
+
+    Args:
+        wb: openpyxl Workbook.
+        coefficient_data: dict keyed by (config, aoa) with 'C_L', 'C_D', 'aoa_degrees', etc.
+        reference_data: list of dicts, each with 'label', 'aoa', 'C_L', 'C_D'.
+    """
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    if not reference_data:
+        return
+
+    ws = wb.create_sheet(title='Reference_Comparison')
+
+    # Styles (matching existing sheets)
+    header_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    subheader_font = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+    subheader_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+    header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    data_alignment = Alignment(horizontal='center', vertical='center')
+    border_style = Border(
+        left=Side(style='thin', color='000000'),
+        right=Side(style='thin', color='000000'),
+        top=Side(style='thin', color='000000'),
+        bottom=Side(style='thin', color='000000')
+    )
+    row_fill_light = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
+    row_fill_white = PatternFill(start_color='FFFFFF', end_color='FFFFFF', fill_type='solid')
+
+    # Group simulation data by config
+    from collections import defaultdict
+    config_groups = defaultdict(dict)
+    for (config, aoa), coeff in coefficient_data.items():
+        aoa_deg = coeff['aoa_degrees']
+        config_groups[config][aoa_deg] = coeff
+
+    current_row = 1
+
+    for config in sorted(config_groups.keys()):
+        sim_by_aoa = config_groups[config]
+
+        # Build column headers dynamically based on number of reference datasets
+        # Columns: AoA | Sim C_L | [Ref1 C_L | ΔC_L | ΔC_L%] | ... | Sim C_D | [Ref1 C_D | ΔC_D | ΔC_D%] | ...
+        base_cols = ['AoA', 'Sim C_L']
+        for ref in reference_data:
+            lbl = ref.get('label', 'Ref')
+            base_cols += [f'{lbl} C_L', 'ΔC_L', 'ΔC_L (%)']
+        base_cols.append('Sim C_D')
+        for ref in reference_data:
+            lbl = ref.get('label', 'Ref')
+            base_cols += [f'{lbl} C_D', 'ΔC_D', 'ΔC_D (%)']
+        num_cols = len(base_cols)
+
+        # Config title row
+        cell = ws.cell(row=current_row, column=1, value=config)
+        cell.font = subheader_font
+        cell.fill = subheader_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border_style
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=num_cols)
+        current_row += 1
+
+        # Column headers
+        for col_idx, col_name in enumerate(base_cols, 1):
+            cell = ws.cell(row=current_row, column=col_idx, value=col_name)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = border_style
+        ws.row_dimensions[current_row].height = 30
+        current_row += 1
+
+        # Collect all AoA values from sim + all reference sets, sort them
+        all_aoas = set(sim_by_aoa.keys())
+        for ref in reference_data:
+            all_aoas.update(ref.get('aoa', []))
+        sorted_aoas = sorted(all_aoas)
+
+        # Build lookup dicts for each reference set
+        ref_lookups = []
+        for ref in reference_data:
+            ref_aoa = ref.get('aoa', [])
+            ref_cl = ref.get('C_L', [])
+            ref_cd = ref.get('C_D', [])
+            lookup = {}
+            for i, a in enumerate(ref_aoa):
+                lookup[a] = {
+                    'C_L': ref_cl[i] if i < len(ref_cl) else None,
+                    'C_D': ref_cd[i] if i < len(ref_cd) else None,
+                }
+            ref_lookups.append(lookup)
+
+        # Data rows — also collect deltas for error metrics
+        # Per reference set: list of (sim, ref) pairs where both exist
+        cl_pairs = [[] for _ in reference_data]  # cl_pairs[ref_idx] = [(sim_cl, ref_cl), ...]
+        cd_pairs = [[] for _ in reference_data]
+
+        for idx, aoa_deg in enumerate(sorted_aoas):
+            fill = row_fill_light if idx % 2 == 0 else row_fill_white
+
+            sim = sim_by_aoa.get(aoa_deg)
+            sim_cl = sim['C_L'] if sim else None
+            sim_cd = sim['C_D'] if sim else None
+
+            row_values = [aoa_deg]
+
+            # C_L section
+            row_values.append(format_sig_figs(sim_cl, 3) if sim_cl is not None else '')
+            for r_idx, ref_lk in enumerate(ref_lookups):
+                ref_entry = ref_lk.get(aoa_deg)
+                ref_cl = ref_entry['C_L'] if ref_entry else None
+                row_values.append(format_sig_figs(ref_cl, 3) if ref_cl is not None else '')
+                # Delta and %
+                if sim_cl is not None and ref_cl is not None:
+                    delta = sim_cl - ref_cl
+                    pct = (delta / abs(ref_cl) * 100) if ref_cl != 0 else None
+                    row_values.append(f'{delta:+.4f}')
+                    row_values.append(f'{pct:+.2f}' if pct is not None else '')
+                    cl_pairs[r_idx].append((sim_cl, ref_cl))
+                else:
+                    row_values += ['', '']
+
+            # C_D section
+            row_values.append(format_sig_figs(sim_cd, 3) if sim_cd is not None else '')
+            for r_idx, ref_lk in enumerate(ref_lookups):
+                ref_entry = ref_lk.get(aoa_deg)
+                ref_cd = ref_entry['C_D'] if ref_entry else None
+                row_values.append(format_sig_figs(ref_cd, 3) if ref_cd is not None else '')
+                if sim_cd is not None and ref_cd is not None:
+                    delta = sim_cd - ref_cd
+                    pct = (delta / abs(ref_cd) * 100) if ref_cd != 0 else None
+                    row_values.append(f'{delta:+.6f}')
+                    row_values.append(f'{pct:+.2f}' if pct is not None else '')
+                    cd_pairs[r_idx].append((sim_cd, ref_cd))
+                else:
+                    row_values += ['', '']
+
+            for col_idx, val in enumerate(row_values, 1):
+                cell = ws.cell(row=current_row, column=col_idx, value=val)
+                cell.alignment = data_alignment
+                cell.border = border_style
+                cell.fill = fill
+            current_row += 1
+
+        # --- Error Summary Rows (RMSE, MAE, MAPE) ---
+        summary_font = Font(name='Calibri', size=11, bold=True)
+        summary_fill = PatternFill(start_color='D9E2F3', end_color='D9E2F3', fill_type='solid')
+
+        def _compute_errors(pairs):
+            """Return (RMSE, MAE, MAPE) from list of (sim, ref) pairs."""
+            if not pairs:
+                return None, None, None
+            import math
+            n = len(pairs)
+            abs_errs = [abs(s - r) for s, r in pairs]
+            sq_errs = [(s - r) ** 2 for s, r in pairs]
+            mae = sum(abs_errs) / n
+            rmse = math.sqrt(sum(sq_errs) / n)
+            # MAPE: skip zero-reference points
+            pct_errs = [abs(s - r) / abs(r) * 100 for s, r in pairs if r != 0]
+            mape = sum(pct_errs) / len(pct_errs) if pct_errs else None
+            return rmse, mae, mape
+
+        # Compute per-reference-set errors
+        cl_errors = [_compute_errors(pairs) for pairs in cl_pairs]
+        cd_errors = [_compute_errors(pairs) for pairs in cd_pairs]
+
+        # Write 3 summary rows: RMSE, MAE, MAPE
+        for metric_idx, metric_name in enumerate(['RMSE', 'MAE', 'MAPE (%)']):
+            summary_row = [metric_name, '']
+            for r_idx in range(len(reference_data)):
+                rmse, mae, mape = cl_errors[r_idx]
+                if metric_name == 'RMSE':
+                    val = f'{rmse:.4f}' if rmse is not None else ''
+                elif metric_name == 'MAE':
+                    val = f'{mae:.4f}' if mae is not None else ''
+                else:  # MAPE
+                    val = f'{mape:.2f}' if mape is not None else ''
+                summary_row += ['', val, '']  # blank for ref value col, val in delta col, blank for % col
+            summary_row.append('')  # Sim C_D column
+            for r_idx in range(len(reference_data)):
+                rmse, mae, mape = cd_errors[r_idx]
+                if metric_name == 'RMSE':
+                    val = f'{rmse:.6f}' if rmse is not None else ''
+                elif metric_name == 'MAE':
+                    val = f'{mae:.6f}' if mae is not None else ''
+                else:  # MAPE
+                    val = f'{mape:.2f}' if mape is not None else ''
+                summary_row += ['', val, '']
+
+            for col_idx, val in enumerate(summary_row, 1):
+                cell = ws.cell(row=current_row, column=col_idx, value=val)
+                cell.alignment = data_alignment
+                cell.border = border_style
+                cell.fill = summary_fill
+                cell.font = summary_font
+            current_row += 1
+
+        current_row += 1  # Blank row between configs
+
+    # ---- Combined "All Versions" table ----
+    # Aggregate simulation values across all configs at each AoA (average)
+    from collections import defaultdict as _dd
+    combined_by_aoa = _dd(lambda: {'C_L': [], 'C_D': []})
+    for (config, aoa), coeff in coefficient_data.items():
+        aoa_deg = coeff['aoa_degrees']
+        combined_by_aoa[aoa_deg]['C_L'].append(coeff['C_L'])
+        combined_by_aoa[aoa_deg]['C_D'].append(coeff['C_D'])
+
+    # Build column headers (same structure as per-config tables)
+    combined_cols = ['AoA', 'Sim C_L (avg)']
+    for ref in reference_data:
+        lbl = ref.get('label', 'Ref')
+        combined_cols += [f'{lbl} C_L', 'ΔC_L', 'ΔC_L (%)']
+    combined_cols.append('Sim C_D (avg)')
+    for ref in reference_data:
+        lbl = ref.get('label', 'Ref')
+        combined_cols += [f'{lbl} C_D', 'ΔC_D', 'ΔC_D (%)']
+    num_combined_cols = len(combined_cols)
+
+    # Title row
+    combined_title_font = Font(name='Calibri', size=12, bold=True, color='FFFFFF')
+    combined_title_fill = PatternFill(start_color='2F5496', end_color='2F5496', fill_type='solid')
+    cell = ws.cell(row=current_row, column=1, value='All Versions Combined')
+    cell.font = combined_title_font
+    cell.fill = combined_title_fill
+    cell.alignment = Alignment(horizontal='center', vertical='center')
+    cell.border = border_style
+    ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=num_combined_cols)
+    current_row += 1
+
+    # Column headers
+    for col_idx, col_name in enumerate(combined_cols, 1):
+        cell = ws.cell(row=current_row, column=col_idx, value=col_name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = border_style
+    ws.row_dimensions[current_row].height = 30
+    current_row += 1
+
+    # Reference lookups (reuse logic)
+    combined_ref_lookups = []
+    for ref in reference_data:
+        ref_aoa = ref.get('aoa', [])
+        ref_cl = ref.get('C_L', [])
+        ref_cd = ref.get('C_D', [])
+        lookup = {}
+        for i, a in enumerate(ref_aoa):
+            lookup[a] = {
+                'C_L': ref_cl[i] if i < len(ref_cl) else None,
+                'C_D': ref_cd[i] if i < len(ref_cd) else None,
+            }
+        combined_ref_lookups.append(lookup)
+
+    # Collect all AoAs from sim + reference
+    combined_all_aoas = set(combined_by_aoa.keys())
+    for ref in reference_data:
+        combined_all_aoas.update(ref.get('aoa', []))
+    combined_sorted_aoas = sorted(combined_all_aoas)
+
+    # Track pairs for error metrics
+    combined_cl_pairs = [[] for _ in reference_data]
+    combined_cd_pairs = [[] for _ in reference_data]
+
+    for idx, aoa_deg in enumerate(combined_sorted_aoas):
+        fill = row_fill_light if idx % 2 == 0 else row_fill_white
+
+        aoa_entry = combined_by_aoa.get(aoa_deg)
+        sim_cl = np.mean(aoa_entry['C_L']) if aoa_entry and aoa_entry['C_L'] else None
+        sim_cd = np.mean(aoa_entry['C_D']) if aoa_entry and aoa_entry['C_D'] else None
+
+        row_values = [aoa_deg]
+
+        # C_L section
+        row_values.append(format_sig_figs(sim_cl, 3) if sim_cl is not None else '')
+        for r_idx, ref_lk in enumerate(combined_ref_lookups):
+            ref_entry = ref_lk.get(aoa_deg)
+            ref_cl = ref_entry['C_L'] if ref_entry else None
+            row_values.append(format_sig_figs(ref_cl, 3) if ref_cl is not None else '')
+            if sim_cl is not None and ref_cl is not None:
+                delta = sim_cl - ref_cl
+                pct = (delta / abs(ref_cl) * 100) if ref_cl != 0 else None
+                row_values.append(f'{delta:+.4f}')
+                row_values.append(f'{pct:+.2f}' if pct is not None else '')
+                combined_cl_pairs[r_idx].append((sim_cl, ref_cl))
+            else:
+                row_values += ['', '']
+
+        # C_D section
+        row_values.append(format_sig_figs(sim_cd, 3) if sim_cd is not None else '')
+        for r_idx, ref_lk in enumerate(combined_ref_lookups):
+            ref_entry = ref_lk.get(aoa_deg)
+            ref_cd = ref_entry['C_D'] if ref_entry else None
+            row_values.append(format_sig_figs(ref_cd, 3) if ref_cd is not None else '')
+            if sim_cd is not None and ref_cd is not None:
+                delta = sim_cd - ref_cd
+                pct = (delta / abs(ref_cd) * 100) if ref_cd != 0 else None
+                row_values.append(f'{delta:+.6f}')
+                row_values.append(f'{pct:+.2f}' if pct is not None else '')
+                combined_cd_pairs[r_idx].append((sim_cd, ref_cd))
+            else:
+                row_values += ['', '']
+
+        for col_idx, val in enumerate(row_values, 1):
+            cell = ws.cell(row=current_row, column=col_idx, value=val)
+            cell.alignment = data_alignment
+            cell.border = border_style
+            cell.fill = fill
+        current_row += 1
+
+    # Error Summary Rows for combined table
+    combined_cl_errors = [_compute_errors(pairs) for pairs in combined_cl_pairs]
+    combined_cd_errors = [_compute_errors(pairs) for pairs in combined_cd_pairs]
+
+    for metric_idx, metric_name in enumerate(['RMSE', 'MAE', 'MAPE (%)']):
+        summary_row = [metric_name, '']
+        for r_idx in range(len(reference_data)):
+            rmse, mae, mape = combined_cl_errors[r_idx]
+            if metric_name == 'RMSE':
+                val = f'{rmse:.4f}' if rmse is not None else ''
+            elif metric_name == 'MAE':
+                val = f'{mae:.4f}' if mae is not None else ''
+            else:
+                val = f'{mape:.2f}' if mape is not None else ''
+            summary_row += ['', val, '']
+        summary_row.append('')
+        for r_idx in range(len(reference_data)):
+            rmse, mae, mape = combined_cd_errors[r_idx]
+            if metric_name == 'RMSE':
+                val = f'{rmse:.6f}' if rmse is not None else ''
+            elif metric_name == 'MAE':
+                val = f'{mae:.6f}' if mae is not None else ''
+            else:
+                val = f'{mape:.2f}' if mape is not None else ''
+            summary_row += ['', val, '']
+
+        for col_idx, val in enumerate(summary_row, 1):
+            cell = ws.cell(row=current_row, column=col_idx, value=val)
+            cell.alignment = data_alignment
+            cell.border = border_style
+            cell.fill = summary_fill
+            cell.font = summary_font
+        current_row += 1
+
+    # Update num_cols to account for combined table if wider
+    num_cols = max(num_cols, num_combined_cols)
+
+    # Autofit columns
+    for col_idx in range(1, num_cols + 1):
+        max_length = 0
+        column_letter = get_column_letter(col_idx)
+        for row in ws.iter_rows(min_col=col_idx, max_col=col_idx):
+            for cell in row:
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except Exception:
+                    pass
+        adjusted_width = min(max_length + 2, 26)
+        ws.column_dimensions[column_letter].width = adjusted_width
+
+
 def apply_excel_formatting(excel_file):
     """Legacy function - formatting now done during sheet creation."""
     pass
@@ -2309,8 +3126,13 @@ def apply_excel_formatting(excel_file):
 
 # ==================== PLOTTING FUNCTIONS ====================
 
-def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_map, value_mappings, comparison_mode='single', max_cov_threshold=None):
-    """Create all coefficient graphs organized by comparison family."""
+def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_map, value_mappings, comparison_mode='single', max_cov_threshold=None, reference_data=None):
+    """Create all coefficient graphs organized by comparison family.
+    
+    Args:
+        reference_data: Optional list of dicts with keys 'label', 'aoa', 'C_L', 'C_D'.
+                        When provided, these are overlaid on every coefficient graph.
+    """
     
     import itertools
     colors = ACADEMIC_COLORS
@@ -2325,12 +3147,12 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
         return 'Unknown'
     
     # 1. Group data by "Family" (The Graph Title/Folder)
-    #    For expanded/grid modes, we also track grid status
+    #    For grid mode, we also track grid status
     graphs_data = defaultdict(lambda: defaultdict(list))
-    graphs_data_by_grid = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # For expanded
+    graphs_data_by_grid = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # For grid
     
     # For mixed mode, pre-compute which attributes vary
-    varying_info = detect_varying_attributes(all_data) if comparison_mode == 'mixed' else None
+    varying_info = detect_varying_attributes(all_data) if comparison_mode in ('mixed', 'family_grid') else None
     
     for (config, aoa), coeff in coefficient_data.items():
         # Family: The common denominator (e.g., Geometry + Mesh)
@@ -2347,11 +3169,9 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
         # Series Label: What distinguishes this line?
         if comparison_mode == 'turbulence':
             series_label = turb_model
-        elif comparison_mode == 'expanded':
-            # For expanded, series is turbulence model (primary grouping is by grid)
+        elif comparison_mode in ('grid', 'family_grid'):
+            # For grid / family_grid, series is turbulence model (primary grouping is by grid)
             series_label = turb_model
-        elif comparison_mode == 'grid':
-            series_label = grid_status
         elif comparison_mode == 'mesh':
             org_data = all_data.get((config, aoa), {})
             series_label = org_data.get('mesh', 'Unknown Mesh')
@@ -2368,8 +3188,8 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
 
         graphs_data[family][series_label].append(coeff_with_grid)
         
-        # For expanded/grid modes, also group by grid status
-        if comparison_mode in ('expanded', 'grid'):
+        # For grid / family_grid mode, also group by grid status
+        if comparison_mode in ('grid', 'family_grid'):
             graphs_data_by_grid[family][grid_status][turb_model].append(coeff_with_grid)
     
     # Create graphs for each Family
@@ -2377,45 +3197,12 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
         series_dict = graphs_data[family]
         
         # === COMPARISON PLOTS ===
-        if comparison_mode == 'expanded':
-            # For expanded mode, create multiple comparison sets:
+        if comparison_mode in ('grid', 'family_grid'):
+            # For grid mode: Grid vs No Grid for each turbulence model
             
             grid_data = graphs_data_by_grid[family]
             
-            # 1 & 2: Turbulence comparison per grid status
-            for grid_status in ['With Grid', 'No Grid']:
-                if grid_status not in grid_data:
-                    continue
-                    
-                safe_grid = grid_status.replace(' ', '_')
-                comp_dir = output_dir / "coefficient_graphs" / "Comparison" / f"Turbulence_{safe_grid}" / family
-                comp_dir.mkdir(parents=True, exist_ok=True)
-                
-                plot_items = []
-                color_cycle = itertools.cycle(colors)
-                marker_cycle = itertools.cycle(markers)
-                
-                for turb_name in sorted(grid_data[grid_status].keys()):
-                    items = sorted(grid_data[grid_status][turb_name], key=lambda x: x['aoa_degrees'])
-                    if not items:
-                        continue
-                        
-                    aoa_vals = np.array([x['aoa_degrees'] for x in items])
-                    C_L_vals = np.array([x['C_L'] for x in items])
-                    C_D_vals = np.array([x['C_D'] for x in items])
-                    C_L_std = np.array([x.get('C_L_std', 0) for x in items])
-                    C_D_std = np.array([x.get('C_D_std', 0) for x in items])
-                    
-                    plot_items.append({
-                        'aoa': aoa_vals, 'C_L': C_L_vals, 'C_D': C_D_vals,
-                        'C_L_std': C_L_std, 'C_D_std': C_D_std,
-                        'style': {'label': turb_name, 'color': next(color_cycle), 'marker': next(marker_cycle)}
-                    })
-                
-                if plot_items:
-                    _plot_standard_aerodynamics(plot_items, comp_dir, f'{family} ({grid_status})', max_cov_threshold)
-            
-            # 3: Grid vs No Grid for each turbulence model
+            # Grid vs No Grid for each turbulence model
             all_turb_models = set()
             for grid_status in grid_data:
                 all_turb_models.update(grid_data[grid_status].keys())
@@ -2449,7 +3236,7 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
                         })
                 
                 if plot_items:
-                    _plot_standard_aerodynamics(plot_items, comp_dir, f'{family} - {turb_name}', max_cov_threshold)
+                    _plot_standard_aerodynamics(plot_items, comp_dir, f'{family} - {turb_name}', max_cov_threshold, reference_data=reference_data)
         
         elif comparison_mode != 'single':
             # Standard comparison (all series on one graph) — skip in single mode
@@ -2499,11 +3286,11 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
                         pass
                 
                 # Standard Aerodynamics
-                _plot_standard_aerodynamics(plot_items, comp_dir, plot_title, max_cov_threshold)
+                _plot_standard_aerodynamics(plot_items, comp_dir, plot_title, max_cov_threshold, reference_data=reference_data)
 
         # === SINGLE PLOTS (Individual Series) ===
-        # For expanded/grid modes, organize by grid status first
-        if comparison_mode in ('expanded', 'grid'):
+        # For grid mode, organize by grid status first
+        if comparison_mode in ('grid', 'family_grid'):
             grid_data = graphs_data_by_grid[family]
             for grid_status in sorted(grid_data.keys()):
                 safe_grid = grid_status.replace(' ', '_')
@@ -2531,7 +3318,7 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
                         'style': {'label': turb_name, 'color': next(color_cycle), 'marker': next(marker_cycle)}
                     }
                     
-                    _plot_standard_aerodynamics([item], single_dir, f'{family} - {turb_name} ({grid_status})', max_cov_threshold)
+                    _plot_standard_aerodynamics([item], single_dir, f'{family} - {turb_name} ({grid_status})', max_cov_threshold, reference_data=reference_data)
         else:
             # Standard single plots
             for series_name in sorted(series_dict.keys()):
@@ -2557,12 +3344,16 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
                     'style': {'label': series_name, 'color': next(color_cycle), 'marker': next(marker_cycle)}
                 }
                 
-                _plot_standard_aerodynamics([item], single_dir, f'{family} ({series_name})', max_cov_threshold)
+                _plot_standard_aerodynamics([item], single_dir, f'{family} ({series_name})', max_cov_threshold, reference_data=reference_data)
 
-def _plot_multi_series(plot_items, val_key, title, ylabel, output_path, max_cov_threshold=None, x_key='aoa', xlabel='Angle of Attack $\\alpha$ [deg]'):
-    """Refactored plotter for multiple series with premium academic style."""
+def _plot_multi_series(plot_items, val_key, title, ylabel, output_path, max_cov_threshold=None, x_key='aoa', xlabel='Angle of Attack $\\alpha$ [deg]', reference_data=None):
+    """Refactored plotter for multiple series with premium academic style.
+    
+    Args:
+        reference_data: Optional list of dicts with 'label', 'aoa', 'C_L', 'C_D' to overlay.
+    """
     set_plot_style()
-    plt.figure(figsize=(10, 7))
+    plt.figure(figsize=(16, 9))
     
     points_removed = 0
     total_points = 0
@@ -2605,6 +3396,40 @@ def _plot_multi_series(plot_items, val_key, title, ylabel, output_path, max_cov_
                      capsize=3, linestyle='-', linewidth=2, markersize=8, alpha=0.9,
                      markeredgecolor='white', markeredgewidth=0.5)
                      
+    # --- Overlay reference data ---
+    if reference_data and val_key in ('C_L', 'C_D', 'CL_CD', 'Endurance'):
+        ref_markers = ['x', '+', '1', '2', '3', '4']
+        ref_colors  = ['#333333', '#666666', '#999999', '#444444', '#777777']
+        for r_idx, ref in enumerate(reference_data):
+            ref_aoa = np.array(ref['aoa'])
+            ref_cl  = np.array(ref.get('C_L', []))
+            ref_cd  = np.array(ref.get('C_D', []))
+            ref_label = ref.get('label', f'Ref {r_idx+1}')
+            r_color = ref_colors[r_idx % len(ref_colors)]
+            r_marker = ref_markers[r_idx % len(ref_markers)]
+            
+            if x_key == 'C_D' and val_key == 'C_L':
+                # Drag polar: x=C_D, y=C_L
+                if len(ref_cd) > 0 and len(ref_cl) > 0:
+                    plt.plot(ref_cd, ref_cl, label=ref_label, color=r_color,
+                             marker=r_marker, linestyle='--', linewidth=1.8, markersize=9, alpha=0.85)
+            elif val_key == 'C_L' and len(ref_cl) > 0:
+                plt.plot(ref_aoa, ref_cl, label=ref_label, color=r_color,
+                         marker=r_marker, linestyle='--', linewidth=1.8, markersize=9, alpha=0.85)
+            elif val_key == 'C_D' and len(ref_cd) > 0:
+                plt.plot(ref_aoa, ref_cd, label=ref_label, color=r_color,
+                         marker=r_marker, linestyle='--', linewidth=1.8, markersize=9, alpha=0.85)
+            elif val_key == 'CL_CD' and len(ref_cl) > 0 and len(ref_cd) > 0:
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    ref_ld = np.where(np.abs(ref_cd) > 1e-9, ref_cl / ref_cd, 0)
+                plt.plot(ref_aoa, ref_ld, label=ref_label, color=r_color,
+                         marker=r_marker, linestyle='--', linewidth=1.8, markersize=9, alpha=0.85)
+            elif val_key == 'Endurance' and len(ref_cl) > 0 and len(ref_cd) > 0:
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    ref_end = np.where(np.abs(ref_cd) > 1e-9, (np.abs(ref_cl)**1.5) / ref_cd, 0)
+                plt.plot(ref_aoa, ref_end, label=ref_label, color=r_color,
+                         marker=r_marker, linestyle='--', linewidth=1.8, markersize=9, alpha=0.85)
+    
     plt.title(title, pad=20)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -2640,7 +3465,7 @@ def _calculate_derived_aerodynamics(plot_items):
         item['CL_CD'] = L_D
         item['Endurance'] = Endurance
 
-def _plot_standard_aerodynamics(plot_items, output_dir, title_prefix, max_cov_threshold=None):
+def _plot_standard_aerodynamics(plot_items, output_dir, title_prefix, max_cov_threshold=None, reference_data=None):
     """Generates standard set of aerodynamic plots: Lift, Drag, Polar, CL/CD, Endurance."""
     # Ensure derived metrics exist
     _calculate_derived_aerodynamics(plot_items)
@@ -2652,20 +3477,20 @@ def _plot_standard_aerodynamics(plot_items, output_dir, title_prefix, max_cov_th
 
     # 1. C_L vs AoA
     _plot_multi_series(plot_items, 'C_L', f'{title_prefix} - Lift Coefficient', 
-                      'Lift Coefficient ($C_L$)', output_dir / make_name("Lift_Coefficient"), max_cov_threshold)
+                      'Lift Coefficient ($C_L$)', output_dir / make_name("Lift_Coefficient"), max_cov_threshold, reference_data=reference_data)
     # 2. C_D vs AoA
     _plot_multi_series(plot_items, 'C_D', f'{title_prefix} - Drag Coefficient', 
-                      'Drag Coefficient ($C_D$)', output_dir / make_name("Drag_Coefficient"), max_cov_threshold)
+                      'Drag Coefficient ($C_D$)', output_dir / make_name("Drag_Coefficient"), max_cov_threshold, reference_data=reference_data)
     # 3. Drag Polar (C_L vs C_D)
     _plot_multi_series(plot_items, 'C_L', f'{title_prefix} - Drag Polar', 
                       'Lift Coefficient ($C_L$)', output_dir / make_name("Drag_Polar"), max_cov_threshold,
-                      x_key='C_D', xlabel='Drag Coefficient ($C_D$)')
+                      x_key='C_D', xlabel='Drag Coefficient ($C_D$)', reference_data=reference_data)
     # 4. CL/CD vs AoA
     _plot_multi_series(plot_items, 'CL_CD', f'{title_prefix} - Lift-to-Drag Ratio', 
-                      'Lift-to-Drag Ratio ($C_L/C_D$)', output_dir / make_name("Lift_to_Drag_Ratio"), max_cov_threshold)
+                      'Lift-to-Drag Ratio ($C_L/C_D$)', output_dir / make_name("Lift_to_Drag_Ratio"), max_cov_threshold, reference_data=reference_data)
     # 5. Endurance vs AoA
     _plot_multi_series(plot_items, 'Endurance', f'{title_prefix} - Endurance Factor', 
-                      'Endurance Factor ($C_L^{1.5} / C_D$)', output_dir / make_name("Endurance_Factor"), max_cov_threshold)
+                      'Endurance Factor ($C_L^{1.5} / C_D$)', output_dir / make_name("Endurance_Factor"), max_cov_threshold, reference_data=reference_data)
     
     # 6. Combined CL/CD (Dual Axis)
     # Note: _plot_dual_axis_cl_cd generates its own filename currently. We should probably update it too or leave it consistent.
@@ -2673,15 +3498,15 @@ def _plot_standard_aerodynamics(plot_items, output_dir, title_prefix, max_cov_th
     # but for now let's pass a specific output path if possible? The function doesn't take filename arg.
     # Let's rename the function to accept filename or handle it internally.
     # For now, let's just stick to the main ones.
-    _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshold)
+    _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshold, reference_data=reference_data)
     
     # 7. Aerodynamic Summary (Quad Plot)
-    _plot_quad_aerodynamics(plot_items, output_dir, title_prefix, max_cov_threshold)
+    _plot_quad_aerodynamics(plot_items, output_dir, title_prefix, max_cov_threshold, reference_data=reference_data)
 
 
-def create_expanded_graphs(coefficient_data, output_dir, comparison_mode='expanded', max_cov_threshold=None):
+def create_grid_graphs(coefficient_data, output_dir, comparison_mode='grid', max_cov_threshold=None, value_mappings=None):
     """
-    Creates 'Expanded Graphs' plotting the ratio of Grid Efficiency / No-Grid Efficiency.
+    Creates 'Grid Graphs' plotting the ratio of Grid Efficiency / No-Grid Efficiency.
     Ratio = (L/D)_G / (L/D)_NG
     """
     # 1. Organize data for pairing
@@ -2717,7 +3542,7 @@ def create_expanded_graphs(coefficient_data, output_dir, comparison_mode='expand
         
         
         # Setup output directory deferred until we have items
-        expanded_dir = output_dir / "coefficient_graphs" / "Expanded_Graphs" / family
+        grid_dir = output_dir / "coefficient_graphs" / "Grid_Graphs" / family
         
         for turb, aoa_dict in turb_dict.items():
             # For this turbulence model, collect (AoA, Ratio) points
@@ -2781,29 +3606,110 @@ def create_expanded_graphs(coefficient_data, output_dir, comparison_mode='expand
         if not plot_items:
             continue
             
-        # 3. Plot
-        expanded_dir.mkdir(parents=True, exist_ok=True)
+        # 3. Plot (per-family)
+        grid_dir.mkdir(parents=True, exist_ok=True)
         _plot_multi_series(plot_items, 'Ratio', 
                            f'{family} - Efficiency Improvement', 
                            'Efficiency Ratio ($(C_L/C_D)_G / (C_L/C_D)_{NG}$)',
-                           expanded_dir / "Efficiency_Ratio_vs_AoA.png",
+                           grid_dir / "Efficiency_Ratio_vs_AoA.png",
                            max_cov_threshold=max_cov_threshold)
+
+    # 4. Combined overlay for family_grid mode
+    if comparison_mode == 'family_grid' and len(pair_data) > 1:
+        import itertools
+        combined_items = []
+        color_cycle = itertools.cycle(ACADEMIC_COLORS)
+        marker_cycle = itertools.cycle(ACADEMIC_MARKERS)
+
+        for family, turb_dict in pair_data.items():
+            for turb, aoa_dict in turb_dict.items():
+                aoa_list = []
+                ratio_list = []
+
+                def _extract_aoa_num(aoa_str):
+                    try:
+                        return float(aoa_str.replace('AoA_', ''))
+                    except Exception:
+                        return 0
+
+                sorted_aoas = sorted(aoa_dict.keys(), key=_extract_aoa_num)
+                for aoa in sorted_aoas:
+                    pair = aoa_dict[aoa]
+                    if 'G' in pair and 'NG' in pair:
+                        g = pair['G']
+                        ng = pair['NG']
+                        if abs(g['C_D']) < 1e-6 or abs(ng['C_D']) < 1e-6:
+                            continue
+                        eff_g = g['C_L'] / g['C_D']
+                        eff_ng = ng['C_L'] / ng['C_D']
+                        if abs(eff_ng) < 1e-6:
+                            continue
+                        ratio_list.append(eff_g / eff_ng)
+                        aoa_list.append(_extract_aoa_num(aoa))
+
+                if not aoa_list:
+                    continue
+
+                # Build smart label using value_mappings if available
+                if value_mappings:
+                    # family is e.g. "5.6" — resolve each part
+                    fam_parts = family.split('.')
+                    resolved = []
+                    # Map position 0 -> velocity, position 1 -> mesh
+                    field_order = ['velocity', 'mesh']
+                    for i, part in enumerate(fam_parts):
+                        field = field_order[i] if i < len(field_order) else None
+                        if field and field in value_mappings:
+                            try:
+                                mapped = value_mappings[field].get(int(part), part)
+                            except (ValueError, TypeError):
+                                mapped = part
+                            resolved.append(str(mapped))
+                        else:
+                            resolved.append(str(part))
+                    family_label = ', '.join(resolved)
+                else:
+                    family_label = family
+                label_parts = [family_label]
+                if turb and turb != 'Unknown':
+                    label_parts.append(turb)
+                label = ' — '.join(label_parts)
+
+                c = next(color_cycle)
+                m = next(marker_cycle)
+                combined_items.append({
+                    'aoa': np.array(aoa_list),
+                    'Ratio': np.array(ratio_list),
+                    'Ratio_std': None,
+                    'style': {'label': label, 'color': c, 'marker': m}
+                })
+
+        if combined_items:
+            combined_dir = output_dir / "coefficient_graphs" / "Grid_Graphs" / "Combined"
+            combined_dir.mkdir(parents=True, exist_ok=True)
+            _plot_multi_series(
+                combined_items, 'Ratio',
+                'All Families — Efficiency Improvement',
+                'Efficiency Ratio ($(C_L/C_D)_G / (C_L/C_D)_{NG}$)',
+                combined_dir / "Combined_Efficiency_Ratio_vs_AoA.png",
+                max_cov_threshold=max_cov_threshold
+            )
 
 
 def _plot_coefficient_vs_aoa(aoa_vals, coeff_vals, std_vals, style, turb_name, config, ylabel, title, output_path):
     """Helper function to plot coefficient vs AoA."""
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(16, 9))
     
     ax.errorbar(aoa_vals, coeff_vals, yerr=std_vals,
                 marker=style['marker'], markersize=10, linewidth=2.5, capsize=5,
                 color=style['color'], label=turb_name, alpha=0.9)
     
-    ax.set_xlabel('Angle of Attack (degrees)', fontsize=14, fontweight='bold')
-    ax.set_ylabel(ylabel, fontsize=14, fontweight='bold')
-    ax.set_title(f'{title}\n{config}', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Angle of Attack (degrees)', fontsize=18, fontweight='bold')
+    ax.set_ylabel(ylabel, fontsize=18, fontweight='bold')
+    ax.set_title(f'{title}\n{config}', fontsize=18, fontweight='bold')
     ax.grid(True, alpha=0.3, linestyle='--')
-    ax.legend(fontsize=12, loc='best', framealpha=0.9)
-    ax.tick_params(labelsize=11)
+    ax.legend(fontsize=16, loc='best', framealpha=0.9)
+    ax.tick_params(labelsize=15)
     
     plt.tight_layout()
     try:
@@ -2814,28 +3720,28 @@ def _plot_coefficient_vs_aoa(aoa_vals, coeff_vals, std_vals, style, turb_name, c
 
 def _plot_combined(aoa_vals, C_L_vals, C_D_vals, C_L_std_vals, C_D_std_vals, style, turb_name, config, output_path):
     """Helper function to plot combined C_L and C_D."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 9))
     
     # Left: C_L vs AoA
     ax1.errorbar(aoa_vals, C_L_vals, yerr=C_L_std_vals,
                 marker=style['marker'], markersize=10, linewidth=2.5, capsize=5,
                 color=style['color'], label=turb_name, alpha=0.9)
-    ax1.set_xlabel('Angle of Attack (degrees)', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('Lift Coefficient ($C_L$)', fontsize=14, fontweight='bold')
-    ax1.set_title(f'Lift Coefficient vs AoA\n{config}', fontsize=14, fontweight='bold')
+    ax1.set_xlabel('Angle of Attack (degrees)', fontsize=18, fontweight='bold')
+    ax1.set_ylabel('Lift Coefficient ($C_L$)', fontsize=18, fontweight='bold')
+    ax1.set_title(f'Lift Coefficient vs AoA\n{config}', fontsize=18, fontweight='bold')
     ax1.grid(True, alpha=0.3, linestyle='--')
-    ax1.legend(fontsize=11, loc='best', framealpha=0.9)
-    ax1.tick_params(labelsize=11)
+    ax1.legend(fontsize=15, loc='best', framealpha=0.9)
+    ax1.tick_params(labelsize=15)
     # Right: C_D vs AoA
     ax2.errorbar(aoa_vals, C_D_vals, yerr=C_D_std_vals,
                 marker=style['marker'], markersize=10, linewidth=2.5, capsize=5,
                 color=style['color'], label=turb_name, alpha=0.9)
-    ax2.set_xlabel('Angle of Attack (degrees)', fontsize=14, fontweight='bold')
-    ax2.set_ylabel('Drag Coefficient ($C_D$)', fontsize=14, fontweight='bold')
-    ax2.set_title(f'Drag Coefficient vs AoA\n{config}', fontsize=14, fontweight='bold')
+    ax2.set_xlabel('Angle of Attack (degrees)', fontsize=18, fontweight='bold')
+    ax2.set_ylabel('Drag Coefficient ($C_D$)', fontsize=18, fontweight='bold')
+    ax2.set_title(f'Drag Coefficient vs AoA\n{config}', fontsize=18, fontweight='bold')
     ax2.grid(True, alpha=0.3, linestyle='--')
-    ax2.legend(fontsize=11, loc='best', framealpha=0.9)
-    ax2.tick_params(labelsize=11)
+    ax2.legend(fontsize=15, loc='best', framealpha=0.9)
+    ax2.tick_params(labelsize=15)
     
     plt.tight_layout()
     try:
@@ -2883,7 +3789,7 @@ def plot_convergence_summary(convergence_results, all_data, output_dir, comparis
             sim_type = data['turbulence_model']
             
         elif comparison_mode == 'grid':
-            # Group by Geom.Mesh.Turb (so Grid varies)
+            # Group by Geom.Mesh ONLY (exclude grid)
             base_family = get_grouping_key(config, mode='grid')
             sim_type = "With Grid" if data.get('grid') in ['G', 'With Grid'] else "No Grid"
 
@@ -2896,6 +3802,10 @@ def plot_convergence_summary(convergence_results, all_data, output_dir, comparis
             # Smart grouping: group by constant attributes, label by varying ones
             base_family = get_mixed_group_key(config, varying_info)
             sim_type = get_mixed_series_label(data, varying_info)
+            
+        elif comparison_mode == 'version':
+            base_family = get_grouping_key(config, mode='version')
+            sim_type = f"V{data.get('version', '?')}"
             
         else:
             base_family = get_grouping_key(config, mode='single')
@@ -2927,7 +3837,7 @@ def plot_convergence_summary(convergence_results, all_data, output_dir, comparis
     
     for family, sims in summary_data.items():
         # Setup Figure: 2x2
-        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+        fig, axes = plt.subplots(2, 2, figsize=(16, 9))
         ((ax1, ax2), (ax3, ax4)) = axes
         
         # Colors/Markers
@@ -2989,10 +3899,10 @@ def plot_convergence_summary(convergence_results, all_data, output_dir, comparis
             print(f"    [WARN] Failed to save summary plot {plot_path.name}: {e}")
         plt.close()
 
-def _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshold=None):
+def _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshold=None, reference_data=None):
     """Generates a dual-axis plot with CL on left and CD on right."""
     set_plot_style()
-    fig, ax1 = plt.subplots(figsize=(10, 7))
+    fig, ax1 = plt.subplots(figsize=(16, 9))
     
     ax2 = ax1.twinx()
     
@@ -3029,13 +3939,37 @@ def _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshol
             cl_label = "$C_L$ (Lift)"
             cd_label = "$C_D$ (Drag)"
             
+        err_cl = item.get('C_L_std')
+        err_cl_valid = err_cl[valid_mask] if err_cl is not None else None
         # Plot CL (Solid)
-        ax1.plot(x[valid_mask], y_cl[valid_mask], color=c_cl, marker='o', 
-                 linestyle='-', linewidth=2, markersize=6, label=cl_label, alpha=0.9)
+        ax1.errorbar(x[valid_mask], y_cl[valid_mask], yerr=err_cl_valid, color=c_cl, marker='o', 
+                 linestyle='-', linewidth=2, markersize=6, label=cl_label, alpha=0.9, capsize=3)
         
+        err_cd = item.get('C_D_std')
+        err_cd_valid = err_cd[valid_mask] if err_cd is not None else None
         # Plot CD (Dashed)
-        ax2.plot(x[valid_mask], y_cd[valid_mask], color=c_cd, marker='s', 
-                 linestyle='--', linewidth=2, markersize=6, label=cd_label, alpha=0.9)
+        ax2.errorbar(x[valid_mask], y_cd[valid_mask], yerr=err_cd_valid, color=c_cd, marker='s', 
+                 linestyle='--', linewidth=2, markersize=6, label=cd_label, alpha=0.9, capsize=3)
+                 
+    # --- Overlay reference data ---
+    if reference_data:
+        ref_markers_list = ['x', '+', '1', '2']
+        ref_colors_list  = ['#333333', '#666666', '#999999', '#444444']
+        for r_idx, ref in enumerate(reference_data):
+            ref_aoa = np.array(ref['aoa'])
+            ref_cl  = np.array(ref.get('C_L', []))
+            ref_cd  = np.array(ref.get('C_D', []))
+            ref_label = ref.get('label', f'Ref {r_idx+1}')
+            r_color = ref_colors_list[r_idx % len(ref_colors_list)]
+            r_marker = ref_markers_list[r_idx % len(ref_markers_list)]
+            if len(ref_cl) > 0:
+                ax1.plot(ref_aoa, ref_cl, label=f'{ref_label} ($C_L$)', color=r_color,
+                         marker=r_marker, linestyle='--', linewidth=1.8, markersize=9, alpha=0.85)
+                has_data = True
+            if len(ref_cd) > 0:
+                ax2.plot(ref_aoa, ref_cd, label=f'{ref_label} ($C_D$)', color=r_color,
+                         marker=r_marker, linestyle=':', linewidth=1.8, markersize=9, alpha=0.85)
+                has_data = True
                  
     if not has_data:
         plt.close()
@@ -3066,11 +4000,11 @@ def _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshol
         print(f"    [WARN] Failed to save dual-axis plot {plot_path.name}: {e}")
     plt.close()
 
-def _plot_quad_aerodynamics(plot_items, output_dir, title_prefix, max_cov_threshold=None):
+def _plot_quad_aerodynamics(plot_items, output_dir, title_prefix, max_cov_threshold=None, reference_data=None):
     """Generates a 2x2 summary plot: CL, CD, L/D, and Polar."""
     set_plot_style()
-    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle(f'{title_prefix} - Aerodynamic Summary', fontsize=16, fontweight='bold', y=0.98)
+    fig, axs = plt.subplots(2, 2, figsize=(16, 9))
+    fig.suptitle(f'{title_prefix} - Aerodynamic Summary', fontweight='bold', y=0.98)
     
     # Subplot mapping
     ax_cl = axs[0, 0]
@@ -3099,32 +4033,65 @@ def _plot_quad_aerodynamics(plot_items, output_dir, title_prefix, max_cov_thresh
         col = s['color']
         mrk = s['marker']
         
+        err_cl = item.get('C_L_std')
+        err_cd = item.get('C_D_std')
+
         # Determine valid mask based on COV if needed (or just valid data)
         # Assuming simple valid check for now
         mask_cl = ~np.isnan(y_cl)
         if np.any(mask_cl):
             has_data = True
-            ax_cl.plot(x_aoa[mask_cl], y_cl[mask_cl], label=lbl, color=col, marker=mrk,
-                       linestyle='-', linewidth=2, markersize=6, alpha=0.8)
+            err_valid = err_cl[mask_cl] if err_cl is not None else None
+            ax_cl.errorbar(x_aoa[mask_cl], y_cl[mask_cl], yerr=err_valid, label=lbl, color=col, marker=mrk,
+                       linestyle='-', linewidth=2, markersize=6, alpha=0.8, capsize=3)
 
         mask_cd = ~np.isnan(y_cd)
         if np.any(mask_cd):
-            ax_cd.plot(x_aoa[mask_cd], y_cd[mask_cd], label=lbl, color=col, marker=mrk,
-                       linestyle='-', linewidth=2, markersize=6, alpha=0.8)
+            err_valid = err_cd[mask_cd] if err_cd is not None else None
+            ax_cd.errorbar(x_aoa[mask_cd], y_cd[mask_cd], yerr=err_valid, label=lbl, color=col, marker=mrk,
+                       linestyle='-', linewidth=2, markersize=6, alpha=0.8, capsize=3)
                        
         if y_eff is not None:
             mask_eff = ~np.isnan(y_eff)
             if np.any(mask_eff):
+                # Error propagation for L/D could be complex, omitting bars for L/D for now
                 ax_eff.plot(x_aoa[mask_eff], y_eff[mask_eff], label=lbl, color=col, marker=mrk,
                            linestyle='-', linewidth=2, markersize=6, alpha=0.8)
                            
         # Drag Polar (CL vs CD)
         mask_polar = (~np.isnan(y_cl)) & (~np.isnan(y_cd))
         if np.any(mask_polar):
-            # Sort by CD for cleaner line? Usually Polar is sorted by CL or something monotonic
+            xerr_valid = err_cd[mask_polar] if err_cd is not None else None
+            yerr_valid = err_cl[mask_polar] if err_cl is not None else None
             # Plotting as scatter + line based on index order (which is AoA order) works for polars usually
-            ax_polar.plot(y_cd[mask_polar], y_cl[mask_polar], label=lbl, color=col, marker=mrk,
-                          linestyle='-', linewidth=2, markersize=6, alpha=0.8)
+            ax_polar.errorbar(y_cd[mask_polar], y_cl[mask_polar], xerr=xerr_valid, yerr=yerr_valid, label=lbl, color=col, marker=mrk,
+                          linestyle='-', linewidth=2, markersize=6, alpha=0.8, capsize=3)
+
+    # --- Overlay reference data on quad plot ---
+    if reference_data:
+        ref_markers_list = ['x', '+', '1', '2']
+        ref_colors_list  = ['#333333', '#666666', '#999999', '#444444']
+        for r_idx, ref in enumerate(reference_data):
+            ref_aoa = np.array(ref['aoa'])
+            ref_cl  = np.array(ref.get('C_L', []))
+            ref_cd  = np.array(ref.get('C_D', []))
+            ref_label = ref.get('label', f'Ref {r_idx+1}')
+            r_color = ref_colors_list[r_idx % len(ref_colors_list)]
+            r_marker = ref_markers_list[r_idx % len(ref_markers_list)]
+            if len(ref_cl) > 0:
+                ax_cl.plot(ref_aoa, ref_cl, label=ref_label, color=r_color,
+                           marker=r_marker, linestyle='--', linewidth=1.8, markersize=7, alpha=0.85)
+                has_data = True
+            if len(ref_cd) > 0:
+                ax_cd.plot(ref_aoa, ref_cd, label=ref_label, color=r_color,
+                           marker=r_marker, linestyle='--', linewidth=1.8, markersize=7, alpha=0.85)
+            if len(ref_cl) > 0 and len(ref_cd) > 0:
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    ref_ld = np.where(np.abs(ref_cd) > 1e-9, ref_cl / ref_cd, 0)
+                ax_eff.plot(ref_aoa, ref_ld, label=ref_label, color=r_color,
+                            marker=r_marker, linestyle='--', linewidth=1.8, markersize=7, alpha=0.85)
+                ax_polar.plot(ref_cd, ref_cl, label=ref_label, color=r_color,
+                              marker=r_marker, linestyle='--', linewidth=1.8, markersize=7, alpha=0.85)
 
     if not has_data:
         plt.close()

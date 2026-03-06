@@ -48,7 +48,7 @@ class QueueWriter(io.TextIOBase):
 # ── Main Application ────────────────────────────────────────────────────────
 
 class CFDApp(tk.Tk):
-    COMPARISON_MODES = ["single", "turbulence", "grid", "mesh", "version", "expanded", "mixed"]
+    COMPARISON_MODES = ["single", "turbulence", "grid", "mesh", "version", "mixed"]
     EXTRACTION_METHODS = ["case_file", "folder"]
     NAMING_SCHEMAS = ["5-part", "4-part"]
 
@@ -168,7 +168,7 @@ class CFDApp(tk.Tk):
                     width=10).grid(row=1, column=3, padx=4, pady=(4, 0))
 
         # ── Section: AoA Filter ──────────────────────────────────────────
-        lf4 = ttk.LabelFrame(self._form, text="AoA Filter (comma-separated, blank = all)")
+        lf4 = ttk.LabelFrame(self._form, text="AoA Filter (comma-separated, decimals OK, blank = all)")
         lf4.grid(row=row, column=0, columnspan=3, sticky="ew", **pad)
         row += 1
 
@@ -242,14 +242,22 @@ class CFDApp(tk.Tk):
         self._derived_label.grid(row=4, column=0, columnspan=7, sticky="w", padx=4, pady=2)
 
         # ── Section: XY Data Source ──────────────────────────────────────
-        lf7 = ttk.LabelFrame(self._form, text="XY Data Source Directory (for Cp / Y+ plots, single mode only)")
+        lf7 = ttk.LabelFrame(self._form, text="XY Data Source Directories (for Cp / Y+ plots)")
         lf7.grid(row=row, column=0, columnspan=3, sticky="ew", **pad)
         row += 1
 
-        self.xy_var = tk.StringVar()
-        ttk.Entry(lf7, textvariable=self.xy_var, width=50).pack(
-            side="left", padx=4, pady=4, fill="x", expand=True)
-        ttk.Button(lf7, text="Browse…", command=self._browse_xy).pack(side="left", padx=4)
+        self.xy_listbox = tk.Listbox(lf7, height=3, selectmode="extended", width=55)
+        self.xy_listbox.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+
+        xy_scroll = ttk.Scrollbar(lf7, orient="vertical", command=self.xy_listbox.yview)
+        self.xy_listbox.configure(yscrollcommand=xy_scroll.set)
+        xy_scroll.pack(side="left", fill="y")
+
+        xy_btn_frame = ttk.Frame(lf7)
+        xy_btn_frame.pack(side="left", padx=4)
+        ttk.Button(xy_btn_frame, text="+ Add", command=self._add_xy_source).pack(fill="x", pady=2)
+        ttk.Button(xy_btn_frame, text="− Remove", command=self._remove_xy_source).pack(fill="x", pady=2)
+        ttk.Button(xy_btn_frame, text="Clear", command=self._clear_xy_sources).pack(fill="x", pady=2)
 
         # ── Run / Stop Buttons ───────────────────────────────────────────
         btn_bar = ttk.Frame(self._form)
@@ -395,7 +403,14 @@ class CFDApp(tk.Tk):
             self._update_derived_values()
 
             # XY data dir
-            self.xy_var.set(str(_main_mod.XY_DATA_SOURCE_DIR))
+            # XY data dir
+            self.xy_listbox.delete(0, "end")
+            # Handle both single path (str/Path) and list of paths
+            if isinstance(_main_mod.XY_DATA_SOURCE_DIR, (list, tuple)):
+                for p in _main_mod.XY_DATA_SOURCE_DIR:
+                    self.xy_listbox.insert("end", str(p))
+            elif _main_mod.XY_DATA_SOURCE_DIR:
+                self.xy_listbox.insert("end", str(_main_mod.XY_DATA_SOURCE_DIR))
 
             # Schema
             from config import ACTIVE_SCHEMA
@@ -426,10 +441,17 @@ class CFDApp(tk.Tk):
         if folder:
             self.output_var.set(folder)
 
-    def _browse_xy(self):
-        folder = filedialog.askdirectory(title="Select XY Data Source Directory")
+    def _add_xy_source(self):
+        folder = filedialog.askdirectory(title="Select XY Data Source Folder")
         if folder:
-            self.xy_var.set(folder)
+            self.xy_listbox.insert("end", folder)
+
+    def _remove_xy_source(self):
+        for idx in reversed(self.xy_listbox.curselection()):
+            self.xy_listbox.delete(idx)
+
+    def _clear_xy_sources(self):
+        self.xy_listbox.delete(0, "end")
 
     def _update_trim_label(self, _):
         pct = int(self.trim_var.get())
@@ -487,14 +509,19 @@ class CFDApp(tk.Tk):
         if not out_dir:
             errors.append("Output directory is required.")
 
-        # AoA filter
+        # AoA filter (supports integers and decimals, e.g. 5,6,7.5)
         aoa_text = self.aoa_var.get().strip()
         aoa_filter = []
         if aoa_text:
             try:
-                aoa_filter = [int(x.strip()) for x in aoa_text.split(",") if x.strip()]
+                for x in aoa_text.split(","):
+                    x = x.strip()
+                    if x:
+                        val = float(x)
+                        # Store as int if whole number (for backward compat with AOA_FILTER)
+                        aoa_filter.append(int(val) if val == int(val) else val)
             except ValueError:
-                errors.append("AoA Filter must be comma-separated integers (e.g. 5,6,7).")
+                errors.append("AoA Filter must be comma-separated numbers (e.g. 5,6,7.5).")
 
         # Physics
         physics_fields = {
@@ -536,7 +563,7 @@ class CFDApp(tk.Tk):
             "comparison_mode": self.mode_var.get(),
             "active_schema": self.schema_var.get(),
             "aoa_filter": aoa_filter or None,
-            "xy_data_source_dir": Path(self.xy_var.get().strip()) if self.xy_var.get().strip() else None,
+            "xy_data_source_dirs": [Path(s) for s in self.xy_listbox.get(0, "end")],
             "num_iterations": self.iter_var.get(),
             "run_convergence_analysis": self.conv_var.get(),
             "convergence_max_trim": self.trim_var.get() / 100.0,

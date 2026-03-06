@@ -459,16 +459,16 @@ def plot_convergence_analysis(config, aoa, lift_data, drag_data, output_dir, max
     
     # Plot 1: Lift Mean vs Iterations Removed
     ax1.plot(lift_results['iterations_removed'], lift_results['mean'], 'o-', linewidth=2, markersize=8, color='#1f77b4')
-    ax1.set_xlabel('Iterations Removed from Start', fontsize=12)
-    ax1.set_ylabel('Lift Mean (N)', fontsize=12)
-    ax1.set_title(f'Lift Mean Convergence\n{config} - {aoa}', fontweight='bold', fontsize=14)
+    ax1.set_xlabel('Iterations Removed from Start', fontsize=16)
+    ax1.set_ylabel('Lift Mean (N)', fontsize=16)
+    ax1.set_title(f'Lift Mean Convergence\n{config} - {aoa}', fontweight='bold', fontsize=18)
     ax1.grid(True, alpha=0.3)
     
     # Plot 2: Lift COV vs Iterations Removed
     ax2.plot(lift_results['iterations_removed'], lift_results['cov'], 'o-', linewidth=2, markersize=8, color='#ff7f0e')
-    ax2.set_xlabel('Iterations Removed from Start', fontsize=12)
-    ax2.set_ylabel('Lift COV (%)', fontsize=12)
-    ax2.set_title(f'Lift COV Convergence\n{config} - {aoa}', fontweight='bold', fontsize=14)
+    ax2.set_xlabel('Iterations Removed from Start', fontsize=16)
+    ax2.set_ylabel('Lift COV (%)', fontsize=16)
+    ax2.set_title(f'Lift COV Convergence\n{config} - {aoa}', fontweight='bold', fontsize=18)
     ax2.grid(True, alpha=0.3)
     
     # Highlight minimum COV point for lift
@@ -476,20 +476,20 @@ def plot_convergence_analysis(config, aoa, lift_data, drag_data, output_dir, max
     ax2.axvline(x=lift_results['iterations_removed'][min_cov_idx], color='red', linestyle='--', linewidth=2, alpha=0.7)
     ax2.text(lift_results['iterations_removed'][min_cov_idx], max(lift_results['cov']), 
              f"  Min COV\n  Remove: {lift_results['iterations_removed'][min_cov_idx]}\n  Use: {lift_results['iterations_used'][min_cov_idx]}", 
-             color='red', fontweight='bold', fontsize=9)
+             color='red', fontweight='bold', fontsize=13)
     
     # Plot 3: Drag Mean vs Iterations Removed
     ax3.plot(drag_results['iterations_removed'], drag_results['mean'], 'o-', linewidth=2, markersize=8, color='#2ca02c')
-    ax3.set_xlabel('Iterations Removed from Start', fontsize=12)
-    ax3.set_ylabel('Drag Mean (N)', fontsize=12)
-    ax3.set_title(f'Drag Mean Convergence\n{config} - {aoa}', fontweight='bold', fontsize=14)
+    ax3.set_xlabel('Iterations Removed from Start', fontsize=16)
+    ax3.set_ylabel('Drag Mean (N)', fontsize=16)
+    ax3.set_title(f'Drag Mean Convergence\n{config} - {aoa}', fontweight='bold', fontsize=18)
     ax3.grid(True, alpha=0.3)
     
     # Plot 4: Drag COV vs Iterations Removed
     ax4.plot(drag_results['iterations_removed'], drag_results['cov'], 'o-', linewidth=2, markersize=8, color='#d62728')
-    ax4.set_xlabel('Iterations Removed from Start', fontsize=12)
-    ax4.set_ylabel('Drag COV (%)', fontsize=12)
-    ax4.set_title(f'Drag COV Convergence\n{config} - {aoa}', fontweight='bold', fontsize=14)
+    ax4.set_xlabel('Iterations Removed from Start', fontsize=16)
+    ax4.set_ylabel('Drag COV (%)', fontsize=16)
+    ax4.set_title(f'Drag COV Convergence\n{config} - {aoa}', fontweight='bold', fontsize=18)
     ax4.grid(True, alpha=0.3)
     
     # Highlight minimum COV point for drag
@@ -497,7 +497,7 @@ def plot_convergence_analysis(config, aoa, lift_data, drag_data, output_dir, max
     ax4.axvline(x=drag_results['iterations_removed'][min_cov_idx], color='red', linestyle='--', linewidth=2, alpha=0.7)
     ax4.text(drag_results['iterations_removed'][min_cov_idx], max(drag_results['cov']), 
              f"  Min COV\n  Remove: {drag_results['iterations_removed'][min_cov_idx]}\n  Use: {drag_results['iterations_used'][min_cov_idx]}", 
-             color='red', fontweight='bold', fontsize=9)
+             color='red', fontweight='bold', fontsize=13)
     
     plt.tight_layout()
     
@@ -1226,12 +1226,12 @@ def _plot_coefficient_vs_aoa(aoa_vals, coeff_vals, std_vals, style, turb_name, c
                 marker=style['marker'], markersize=10, linewidth=2.5, capsize=5,
                 color=style['color'], label=turb_name, alpha=0.9)
     
-    ax.set_xlabel('Angle of Attack (degrees)', fontsize=14, fontweight='bold')
-    ax.set_ylabel(ylabel, fontsize=14, fontweight='bold')
-    ax.set_title(f'{title}\n{config}', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Angle of Attack (degrees)', fontsize=18, fontweight='bold')
+    ax.set_ylabel(ylabel, fontsize=18, fontweight='bold')
+    ax.set_title(f'{title}\n{config}', fontsize=18, fontweight='bold')
     ax.grid(True, alpha=0.3, linestyle='--')
-    ax.legend(fontsize=12, loc='best', framealpha=0.9)
-    ax.tick_params(labelsize=11)
+    ax.legend(fontsize=16, loc='best', framealpha=0.9)
+    ax.tick_params(labelsize=15)
     
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
@@ -1245,23 +1245,23 @@ def _plot_combined(aoa_vals, C_L_vals, C_D_vals, C_L_std_vals, C_D_std_vals, sty
     ax1.errorbar(aoa_vals, C_L_vals, yerr=C_L_std_vals,
                 marker=style['marker'], markersize=10, linewidth=2.5, capsize=5,
                 color=style['color'], label=turb_name, alpha=0.9)
-    ax1.set_xlabel('Angle of Attack (degrees)', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('Lift Coefficient ($C_L$)', fontsize=14, fontweight='bold')
-    ax1.set_title(f'Lift Coefficient vs AoA\n{config}', fontsize=14, fontweight='bold')
+    ax1.set_xlabel('Angle of Attack (degrees)', fontsize=18, fontweight='bold')
+    ax1.set_ylabel('Lift Coefficient ($C_L$)', fontsize=18, fontweight='bold')
+    ax1.set_title(f'Lift Coefficient vs AoA\n{config}', fontsize=18, fontweight='bold')
     ax1.grid(True, alpha=0.3, linestyle='--')
-    ax1.legend(fontsize=11, loc='best', framealpha=0.9)
-    ax1.tick_params(labelsize=11)
+    ax1.legend(fontsize=15, loc='best', framealpha=0.9)
+    ax1.tick_params(labelsize=15)
     
     # Right: C_D vs AoA
     ax2.errorbar(aoa_vals, C_D_vals, yerr=C_D_std_vals,
                 marker=style['marker'], markersize=10, linewidth=2.5, capsize=5,
                 color=style['color'], label=turb_name, alpha=0.9)
-    ax2.set_xlabel('Angle of Attack (degrees)', fontsize=14, fontweight='bold')
-    ax2.set_ylabel('Drag Coefficient ($C_D$)', fontsize=14, fontweight='bold')
-    ax2.set_title(f'Drag Coefficient vs AoA\n{config}', fontsize=14, fontweight='bold')
+    ax2.set_xlabel('Angle of Attack (degrees)', fontsize=18, fontweight='bold')
+    ax2.set_ylabel('Drag Coefficient ($C_D$)', fontsize=18, fontweight='bold')
+    ax2.set_title(f'Drag Coefficient vs AoA\n{config}', fontsize=18, fontweight='bold')
     ax2.grid(True, alpha=0.3, linestyle='--')
-    ax2.legend(fontsize=11, loc='best', framealpha=0.9)
-    ax2.tick_params(labelsize=11)
+    ax2.legend(fontsize=15, loc='best', framealpha=0.9)
+    ax2.tick_params(labelsize=15)
     
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')

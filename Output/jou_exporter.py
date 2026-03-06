@@ -19,15 +19,15 @@ from datetime import datetime
 # ============================================================
 
 # OUTPUT SETTINGS
-export_filename = "4.6.1.1.G.5_20"  # Filename (no .jou needed)
-export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Data_Prepartation\HPC\4.6.1.1.G_setup"
+export_filename = "5.6.1.8.G" # Filename (no .jou needed)
+export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Data_Prepartation\HPC\5.6.1.8.G_setup"
 
 # --- 1. Angle of Attack (AoA) Settings ---
 AOA_MODE = "List"  # Options: "Range", "List", "MultiRange"
 
 # If "Range":
-AOA_START = 0
-AOA_END = 10
+AOA_START = 5 
+AOA_END = 20
 AOA_STEP = 1.0
 
 # If "MultiRange":
@@ -38,12 +38,12 @@ AOA_RANGES = [
 ]
 
 # If "List":
-AOA_LIST = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+AOA_LIST = [0,0.5,1,1.5,2,2.5,3,3.5,4,4.5]
 
 # --- 2. Simulation Parameters ---
-V_MAG = 24.38      # Velocity magnitude (m/s)
-BASE_OUTPUT_DIR = "/home/ljcrick/directories/4.6.1.1.G"
-OUTPUT_FILENAME_BASE = "4.6.1.1.G"  # Base name for output files
+V_MAG = 14.3773     # Velocity magnitude (m/s) Re 300,000 14.3773 m/s, Re 508,718 24.38 m/s, Re 3,000,000 143.773 m/s
+BASE_OUTPUT_DIR = "/home/ljcrick/directories/5.6.1.8.G" 
+OUTPUT_FILENAME_BASE = "5.6.1.8.G"  # Base name for output files
 DRAG_REPORT_FILE = "drag-rfile"
 LIFT_REPORT_FILE = "lift-rfile"
 ITERATIONS = 1200  # Number of iterations to run
@@ -103,12 +103,19 @@ DEFAULT_ZONES = {
 # Override rules for specific AoAs
 ZONE_RULES = [
     {
-        "aoa_range": [0, 4],  # Start, End (Inclusive)
+        "aoa_range": [-4.99,4.99],  # Start, End (Inclusive) this was V3 boundary conditions
         "inlets": GROUP_INLET_MAIN,
-        "outlets": GROUP_OUTLET_MAIN + GROUP_OUTLET_TOP,
-        "symmetry": GROUP_INLET_BOTTOM
+        "outlets": GROUP_OUTLET_MAIN + GROUP_OUTLET_TOP + GROUP_INLET_BOTTOM, # + GROUP_OUTLET_TOP,
+        "symmetry": GROUP_SYMMETRY #At first, it was top and bottom outlets, then it was bottom symmetry, then we tried top and bottom symmetry. 
+    },
+    {   # Negative AoA beyond -4: flip top/bottom (top=inlet, bottom=outlet)
+        "aoa_range": [-999, -4.001],  # Effectively aoa < -4 (exclusive of -4)
+        "inlets": GROUP_INLET_MAIN + GROUP_OUTLET_TOP,
+        "outlets": GROUP_OUTLET_MAIN + GROUP_INLET_BOTTOM,
+        "symmetry": GROUP_SYMMETRY
     }
 ]
+#ONE_RULES = []  # No override rules active — uncomment above and populate to enable
 
 # TUI Command Strings
 INLET_TUI_SETTINGS = "no yes yes no 0 yes no ~a no ~a no ~a no no yes 0.05 10"
