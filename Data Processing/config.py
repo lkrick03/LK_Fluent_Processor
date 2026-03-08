@@ -46,7 +46,7 @@ VALUE_MAPPINGS = {
         6: 'Y+ 5'
     },
     'turbulence': {
-        1: 'K-Omega SST',
+        1: 'SST',
         2: 'K-Epsilon Standard',
         3: 'RSM',
     },

@@ -29,21 +29,25 @@ from PIL import Image, ImageDraw, ImageFont
 # 'Highest Version Wins' deduplication is applied per side.
 BASE_DIRS_A = [
     r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.1.NG\Countour_Plots\ParaView",
-    #r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.2.NG\Countour_Plots\ParaView",
-    #r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.3.NG\Countour_Plots\ParaView",
+    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.2.NG\Countour_Plots\ParaView",
+    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.3.NG\Countour_Plots\ParaView",
     r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.4.NG\Countour_Plots\ParaView",
     r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.5.NG\Countour_Plots\ParaView",
-    #r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.6.NG\Countour_Plots\ParaView",
+    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.6.NG\Countour_Plots\ParaView",
+    #r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.7.NG\Countour_Plots\ParaView",
+    #r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.8.NG\Countour_Plots\ParaView",
 ]
 CONFIG_NAMES_A = []  # Leave empty to auto-extract from directory paths
 
 BASE_DIRS_B = [
     r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.1.G\Countour_Plots\ParaView",
-    #r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.2.G\Countour_Plots\ParaView",
+    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.2.G\Countour_Plots\ParaView",
     r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.3.G\Countour_Plots\ParaView",
-    #r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.4.G\Countour_Plots\ParaView",
+    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.4.G\Countour_Plots\ParaView",
     r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.5.G\Countour_Plots\ParaView",
     r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.6.G\Countour_Plots\ParaView",
+    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.7.G\Countour_Plots\ParaView",
+    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.8.G\Countour_Plots\ParaView",
 ]
 CONFIG_NAMES_B = []  # Leave empty to auto-extract from directory paths
 
@@ -54,21 +58,21 @@ NAME_A = "5.6.1.NG"
 NAME_B = "5.6.1.G"
 
 # --- 3. Output ---
-OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Contour_Exports\Contour_Comparisons\5.6.1.NG_vs_5.6.1.G_5_16_20"
+OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Contour_Exports\Contour_Comparisons\5.6.1.NG_vs_5.6.1.G_12_20"
 
 # --- 4. AoA Selection ---
 # Provide a list of AoA values to compare.
 # Leave empty [] to auto-discover all AoAs that exist in BOTH sides.
-AOA_LIST = [5,10,16,20]
+AOA_LIST = [12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20]
 
 # --- 4b. GIF Settings ---
-CREATE_GIFS = False             # Set False to skip GIF creation
+CREATE_GIFS = True                 # Set False to skip GIF creation
 FRAME_DURATION = 500           # Milliseconds per frame (500 = 0.5s per AoA)
 
 # --- 5. Appearance ---
-PAPER_MODE = True          # True = omit titles (keeps whitespace + AR for paper inserts)
+PAPER_MODE = False          # True = omit titles (keeps whitespace + AR for paper inserts)
 LABEL_FONT_SIZE = 36          # Font size for the simulation labels
-SUBLABEL_FONT_SIZE = 28       # Font size for the config name + AoA line
+SUBLABEL_FONT_SIZE = 30       # Font size for the config name + AoA line
 LABEL_COLOR = (0, 0, 0)       # Black text
 LABEL_BAR_HEIGHT = 100         # Pixels reserved for the two-line label bar
 PADDING = 10                   # Pixels of padding around panels
@@ -126,7 +130,15 @@ def describe_config(name):
 
     pieces = []
     if len(numeric_parts) > 0:
-        pieces.append(str(_get('velocity', numeric_parts[0])))
+        vel_str = str(_get('velocity', numeric_parts[0]))
+        # Truncate velocity to 3 significant figures
+        vel_num = ''.join(c for c in vel_str if c.isdigit() or c == '.')
+        vel_suffix = vel_str[len(vel_num):]  # e.g. ' m/s'
+        try:
+            vel_str = f"{float(vel_num):.3g}{vel_suffix}"
+        except ValueError:
+            pass
+        pieces.append(vel_str)
     if len(numeric_parts) > 1:
         pieces.append(str(_get('mesh', numeric_parts[1])))
     if len(numeric_parts) > 2:
@@ -278,20 +290,19 @@ def create_comparison(path_a, path_b, name_a, name_b, aoa_str, output_path):
     img_a = Image.open(path_a)
     img_b = Image.open(path_b)
 
-    # Panel height = tallest input (usually both are the same 1080)
-    panel_h = max(img_a.height, img_b.height)
+    # Use a fixed panel height so ALL comparison outputs have identical
+    # canvas dimensions — this prevents GIF bouncing when source images
+    # vary slightly in size across AoAs (e.g. trailing edge zoom).
+    panel_h = 1080
 
     # In paper mode, skip the label bar space above the panels
     label_bar = 0 if PAPER_MODE else LABEL_BAR_HEIGHT
 
     # Compute the panel width that makes the final canvas exactly 16:9
-    #   total_h = label_bar + PADDING + panel_h + PADDING
-    #   total_w = 3*PADDING + 2*panel_w
-    #   16/9 = total_w / total_h  →  panel_w = (total_h*16/9 - 3*PADDING) / 2
     total_h = label_bar + 2 * PADDING + panel_h
     panel_w = int((total_h * 16 / 9 - 3 * PADDING) / 2)
 
-    # Center-crop each input to the computed panel size
+    # Resize inputs to fit the panel slot (maintain aspect ratio, then center-crop)
     img_a = _center_crop(img_a, panel_w, panel_h)
     img_b = _center_crop(img_b, panel_w, panel_h)
 
@@ -390,10 +401,11 @@ def main():
     gif_groups = defaultdict(list)  # suffix -> [(aoa_float, path), ...]
 
     for aoa_str, suffix in shared_keys:
-        aoa_output_dir = os.path.join(OUTPUT_DIR, f"AoA_{aoa_str}")
-        os.makedirs(aoa_output_dir, exist_ok=True)
+        # Group by variable/view type, not by AoA
+        suffix_dir = os.path.join(OUTPUT_DIR, suffix)
+        os.makedirs(suffix_dir, exist_ok=True)
         out_name = f"Comparison_AoA_{aoa_str}_{suffix}.png"
-        out_path = os.path.join(aoa_output_dir, out_name)
+        out_path = os.path.join(suffix_dir, out_name)
 
         print(f"  -> AoA {aoa_str:>5s} | {suffix}")
         create_comparison(
@@ -422,7 +434,15 @@ def main():
             # Sort frames by AoA (low → high)
             frame_list.sort(key=lambda x: x[0])
 
-            frames = [Image.open(path) for _, path in frame_list]
+            frames = []
+            target_size = None
+            for _, path in frame_list:
+                img = Image.open(path)
+                if target_size is None:
+                    target_size = img.size
+                elif img.size != target_size:
+                    img = img.resize(target_size, Image.LANCZOS)
+                frames.append(img)
             if not frames:
                 continue
 

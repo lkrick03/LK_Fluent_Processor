@@ -31,21 +31,21 @@ except ImportError:
 # List of parent directories containing the AoA_* folders.
 # Each entry is processed in order with its matching CONFIG_NAME and IMAGE_OUTPUT_DIR. Singular, should not be taking multipile families
 BASE_CASE_DIRS = [
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.1.G",
+    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.3.G",
 ]
 
 # Configuration names (must match the order/length of BASE_CASE_DIRS)
 CONFIG_NAMES = [
-    "5.6.1.1.G",
+    "5.6.1.3.G",
 ]
 
 # Where to save the high-res PNG contour images (must match the order/length of BASE_CASE_DIRS)
 IMAGE_OUTPUT_DIRS = [   
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.1.G\Countour_Plots\ParaView\Streamlines",
+    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.3.G\Countour_Plots\ParaView",
 ]
 
 # List of AoA values to process. Leave empty [] to auto-discover all AoA_* folders
-AOA_LIST = [16]
+AOA_LIST = []
 
 # --- 2. Variables and Colors ---
 # Which variables to plot. Note: ParaView might capitalize Fluent variables
@@ -59,7 +59,7 @@ AOA_LIST = [16]
 # Example: "Pressure", "Velocity Magnitude", "Skin Friction Coefficient"
 VARIABLES_TO_PLOT = {
     #"SV_P": "Pressure_Static",
-    #"Velocity_Magnitude": "Velocity_Magnitude"
+    "Velocity_Magnitude": "Velocity_Magnitude"
 }
 
 # The Colormap preset to use. "Viridis (matplotlib)" is standard. 
@@ -103,7 +103,7 @@ CUSTOM_VIEWS = {
 # Which views to apply to which variable (can be one or multiple in a list!):
 VARIABLE_VIEWS = {
     #"SV_P": ["airfoil_center", "leading_edge_zoom"],
-    #"Velocity_Magnitude": ["trailing_edge_zoom", "airfoil_center"]
+    "Velocity_Magnitude": ["trailing_edge_zoom", "airfoil_center"]
 }
 
 # Which views should shift vertically to track the airfoil across AoAs.
@@ -127,7 +127,7 @@ BACKGROUND_COLOR = [1.0, 1.0, 1.0]  # White
 
 # --- 6. Streamline Settings ---
 # Set to True to also render streamline plots for each AoA
-ENABLE_STREAMLINES = True
+ENABLE_STREAMLINES = False  
 
 # Seed line: streamlines will be seeded along this line segment.
 # Format: [x, y, z] for each endpoint.
@@ -150,7 +150,7 @@ STREAMLINE_SOLID_COLOR = [0.0, 0.0, 0.0]  # RGB solid color if not coloring by s
 STREAMLINE_VIEWS = ["airfoil_center"]
 
 # Whether to show the surface geometry underneath the streamlines
-STREAMLINE_SHOW_SURFACE = True
+STREAMLINE_SHOW_SURFACE = False
 STREAMLINE_SURFACE_OPACITY = 0.3  # 0.0 = invisible, 1.0 = fully opaque
 STREAMLINE_SURFACE_COLOR = [0.8, 0.8, 0.8]  # Light gray
 

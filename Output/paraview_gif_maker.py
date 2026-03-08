@@ -31,6 +31,8 @@ IMAGE_OUTPUT_DIRS = [
     r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.3.G\Countour_Plots\ParaView",
     r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.5.G\Countour_Plots\ParaView",
     r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.6.G\Countour_Plots\ParaView",
+    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.7.G\Countour_Plots\ParaView",
+    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.8.G\Countour_Plots\ParaView",
 ]
 
 # Configuration names (must match the order/length of IMAGE_OUTPUT_DIRS)
@@ -38,14 +40,16 @@ CONFIG_NAMES = [
     "5.6.1.1.G",
     "5.6.1.3.G",
     "5.6.1.5.G",
-    "5.6.1.6.G"
+    "5.6.1.6.G",
+    "5.6.1.7.G",
+    "5.6.1.8.G",
 ]
 
 # List of AoA values to include in the GIF. Leave empty [] to include ALL found images.
 AOA_LIST = []
 
 # Where to save the GIFs
-GIF_OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\GIFS\5.6\5.6.1.G"
+GIF_OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Contour_Exports\GIFS\5.6\5.6.1.G"
 
 # Time to show each frame in milliseconds (e.g., 500 = 0.5 seconds per AoA)
 FRAME_DURATION = 250
@@ -224,8 +228,14 @@ def main():
         print(f"  -> Frames: {[x[0] for x in img_list]}")
         
         frames = []
+        target_size = None
         for aoa_val, path in img_list:
-            frames.append(Image.open(path))
+            img = Image.open(path)
+            if target_size is None:
+                target_size = img.size
+            elif img.size != target_size:
+                img = img.resize(target_size, Image.LANCZOS)
+            frames.append(img)
             
         if frames:
             gif_filename = os.path.join(GIF_OUTPUT_DIR, f"{best_config}_Animated_{suffix}.gif")

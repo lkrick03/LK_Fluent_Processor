@@ -36,11 +36,11 @@ from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS, DATA_MANIPU
 DATA_SOURCES = [
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.3.NG"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.NG"), #path is wrong for all of these, the grid data is wrong
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.5.NG"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.5.NG"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.3.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.4.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.5.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.6.G"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.G"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.5.G"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.6.G"),
 
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\Non_HPC\4.3.1.2"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\Non_HPC\4.3.2.1"),
@@ -50,31 +50,32 @@ DATA_SOURCES = [
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.2.G"),
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.3.G"),
 
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.1.NG"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.1.NG"),
 
     #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.4.6\4.6.1.1.G"),
 
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.4.6\4.6.1.1.NG"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.4.6\4.6.1.2.NG"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.4.6\4.6.1.3.NG"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.4.6\4.6.1.1.NG"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.4.6\4.6.1.2.NG"),
+    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.4.6\4.6.1.3.NG"),
 
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.1.NG"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.2.NG"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.3.NG"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.4.NG"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.5.NG"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.6.NG"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.1.NG"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.2.NG"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.3.NG"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.4.NG"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.5.NG"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.6.NG"),
 
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.1.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.2.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.3.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.4.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.5.G"),    
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.6.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.7.G"),        
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.1.G"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.2.G"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.3.G"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.4.G"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.5.G"),    
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.6.G"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.7.G"),
+    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.8.G"),        
 
 ]
-OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Comparisons\2414.6.4\Turbulence_Comparison\4.3.2.NG_vs_4.3.1.NG\Presentation")
+OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Comparisons\2414.6.5\Grid_comp")
 
 # Configuration Extraction Method
 CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
@@ -88,12 +89,12 @@ CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
 # - version: Groups by Geometry.Mesh.Turbulence.Grid to compare versions (V1, V2...) side-by-side.
 # - mixed: Smart detection — groups by constant attributes, labels by whatever varies (e.g. Mesh + Turbulence).
 # - family_grid: Multiple families with G/NG — calculates grid efficiency per family and overlays all on one combined graph.
-COMPARISON_MODE = 'turbulence'
+COMPARISON_MODE = 'grid'
 
 # AoA Filter: Set to a list of angles (e.g., [0, 2, 4]) to only process those AoAs.
 # Set to [] or None to process all.
 
-AOA_FILTER = []
+AOA_FILTER = [0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20]
 
 # Path to folder containing .xy files (if not in source folders)
 # Auto-discovered: scans each DATA_SOURCES path for a 'y_plus_pressure_data' subfolder
@@ -110,7 +111,9 @@ PATHLINE_DATA_SOURCE_DIRS = [
 ]
 
 # Presentation Mode: larger fonts, thicker lines, bigger markers for slides/projectors
-PRESENTATION_MODE = True  # Set to True when generating plots for presentations
+# NOTE: Presentation-mode graphs are now always generated in a 'Presentation' subfolder.
+#       This flag only controls whether the PRIMARY output also uses presentation styling.
+PRESENTATION_MODE = False
 
 # Processing Parameters
 NUM_ITERATIONS = 150  # Number of last iterations to use for statistics only if convergenc anaylsis is turned off
@@ -123,7 +126,16 @@ GRAPH_MAX_COV = 15  # Data points with COV > 5% will be excluded from graphs
 SPAN = 0.85344 # [m] Test width is 2.8 feet
 CHORD = 0.3048 # [m] Test chord is 1 foot
 AIR_DENSITY = 1.225 # [kg/m^3] Standard sea level air density
-VELOCITY = 14.3773 # [m/s] Re 300,000 14.3773 m/s, Re 508,718 24.38 m/s, Re 3,000,000 143.773 m/s
+#Velocity is based on config.py
+
+# Auto-detect velocity from the first DATA_SOURCES folder name using config.py mappings
+if DATA_SOURCES:
+    _vel_idx = int(DATA_SOURCES[0].name.split('.')[POSITION_MAP['velocity']])
+    VELOCITY = float(VALUE_MAPPINGS['velocity'][_vel_idx])
+    print(f"Auto-detected velocity: {VELOCITY} m/s (from index {_vel_idx})")
+else:
+    VELOCITY = 0.0
+    print("[WARN] No DATA_SOURCES configured — VELOCITY set to 0.0")
 
 REFERENCE_AREA = SPAN * CHORD
 DYNAMIC_PRESSURE = 0.5 * AIR_DENSITY * VELOCITY**2
@@ -138,7 +150,7 @@ print(f"Reynolds Number: {REYNOLDS_NUMBER:,.0f}")
 # Set PLOT_REFERENCE_DATA = True to overlay reference data on coefficient graphs.
 # Each entry in the list is one reference dataset with a label, AoA, C_L, and C_D arrays.
 # You can add multiple datasets (e.g., different experiments, different Re).
-PLOT_REFERENCE_DATA = False   # Toggle on/off
+PLOT_REFERENCE_DATA = False       # Toggle on/off
 
 REFERENCE_DATA = [
     {
@@ -650,6 +662,32 @@ def main(config=None):
     print(f"\n[OK] Graphs saved to: {graphs_dir}")
     print("[OK] Organization: coefficient_graphs / turbulence_model / config /")
     print("[OK] Each config contains: C_L_vs_AoA.png, C_D_vs_AoA.png, C_L_C_D_Combined.png")
+
+    # ==================== PRESENTATION MODE PASS ====================
+    # Always generate a second set of graphs with presentation-mode styling
+    _pres_dir = _OUTPUT_DIR / "Pres"
+    _saved_pres = _cfd_mod.PRESENTATION_MODE
+    if not _saved_pres:
+        print("\n" + "-" * 100)
+        print("Generating presentation-mode graphs...")
+        print("-" * 100)
+        _cfd_mod.PRESENTATION_MODE = True
+        _cfd_mod.set_plot_style()  # Apply presentation-mode rcParams
+
+        # Re-generate coefficient graphs
+        create_coefficient_graphs(all_data, coefficient_data, _pres_dir, _POSITION_MAP, _VALUE_MAPPINGS,
+                                  comparison_mode=_COMPARISON_MODE, max_cov_threshold=_GRAPH_MAX_COV,
+                                  reference_data=_REFERENCE_DATA)
+        create_grid_graphs(coefficient_data, _pres_dir, comparison_mode=_COMPARISON_MODE, max_cov_threshold=_GRAPH_MAX_COV, value_mappings=_VALUE_MAPPINGS)
+
+        # Re-generate convergence summary if applicable
+        if convergence_results:
+            plot_convergence_summary(convergence_results, all_data, _pres_dir, comparison_mode=_COMPARISON_MODE)
+
+        # Restore original mode
+        _cfd_mod.PRESENTATION_MODE = _saved_pres
+        _cfd_mod.set_plot_style()  # Restore normal rcParams
+        print(f"[OK] Presentation graphs saved to: {_pres_dir}")
     
     # ==================== PART 5: GENERATING EXPORTED PLOTS (Cp, Y+) ====================
     if _COMPARISON_MODE != 'single' and not _XY_DATA_SOURCE_DIRS:

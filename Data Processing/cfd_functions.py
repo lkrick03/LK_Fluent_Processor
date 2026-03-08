@@ -34,7 +34,7 @@ def set_plot_style():
         _grid_lw = 0.8
         _spine_lw = 1.5
     else:
-        _fonts = {'base': 15, 'title': 18, 'label': 16, 'legend': 14, 'tick': 14}
+        _fonts = {'base': 15, 'title': 22, 'label': 16, 'legend': 14, 'tick': 14}
         _line_width = 1.8
         _marker_size = 7
         _cap_size = 3
@@ -843,7 +843,7 @@ def parse_configuration(dirpath, case_file, config_extraction_method, position_m
         'aoa': aoa,
         'aoa_number': float(aoa_number),
         'version_sort_key': version_num if isinstance(version_num, (int, float)) else 0,
-        'geometry': value_mappings.get('geometry', value_mappings.get('velocity', {})).get(geometry_num, f"Geometry_{geometry_num}") if geometry_num else "N/A",
+        'geometry': (lambda v: f"{float(v):.3g}" if isinstance(v, str) and v.replace('.','',1).replace('-','',1).isdigit() else str(v))(value_mappings.get('geometry', value_mappings.get('velocity', {})).get(geometry_num, f"Geometry_{geometry_num}")) if geometry_num else "N/A",
         'mesh': value_mappings.get('mesh', {}).get(mesh_num, f"Mesh_{mesh_num}") if mesh_num else "N/A",
         'turbulence_model': value_mappings.get('turbulence', {}).get(turbulence_num, f"Turbulence_{turbulence_num}") if turbulence_num else "Unknown",
         'version': value_mappings.get('version', {}).get(version_num, f"Version_{version_num}") if version_num else "N/A",
@@ -3318,7 +3318,10 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
                         'style': {'label': turb_name, 'color': next(color_cycle), 'marker': next(marker_cycle)}
                     }
                     
-                    _plot_standard_aerodynamics([item], single_dir, f'{family} - {turb_name} ({grid_status})', max_cov_threshold, reference_data=reference_data)
+                    # Use single-mode config key for title consistency
+                    single_family = get_grouping_key(items[0].get('_config', family), mode='single')
+                    single_title = f"{single_family} {turb_name}"
+                    _plot_standard_aerodynamics([item], single_dir, single_title, max_cov_threshold, reference_data=reference_data)
         else:
             # Standard single plots
             for series_name in sorted(series_dict.keys()):
@@ -3344,7 +3347,10 @@ def create_coefficient_graphs(all_data, coefficient_data, output_dir, position_m
                     'style': {'label': series_name, 'color': next(color_cycle), 'marker': next(marker_cycle)}
                 }
                 
-                _plot_standard_aerodynamics([item], single_dir, f'{family} ({series_name})', max_cov_threshold, reference_data=reference_data)
+                # Use single-mode config key for title consistency
+                single_family = get_grouping_key(items[0].get('_config', family), mode='single')
+                single_title = f"{single_family} {series_name}"
+                _plot_standard_aerodynamics([item], single_dir, single_title, max_cov_threshold, reference_data=reference_data)
 
 def _plot_multi_series(plot_items, val_key, title, ylabel, output_path, max_cov_threshold=None, x_key='aoa', xlabel='Angle of Attack $\\alpha$ [deg]', reference_data=None):
     """Refactored plotter for multiple series with premium academic style.
@@ -3664,7 +3670,14 @@ def create_grid_graphs(coefficient_data, output_dir, comparison_mode='grid', max
                                 mapped = value_mappings[field].get(int(part), part)
                             except (ValueError, TypeError):
                                 mapped = part
-                            resolved.append(str(mapped))
+                            # Truncate velocity to 3 sig figs for labels
+                            mapped_str = str(mapped)
+                            if field == 'velocity':
+                                try:
+                                    mapped_str = f"{float(mapped_str):.3g}"
+                                except (ValueError, TypeError):
+                                    pass
+                            resolved.append(mapped_str)
                         else:
                             resolved.append(str(part))
                     family_label = ', '.join(resolved)
@@ -3775,16 +3788,11 @@ def plot_convergence_summary(convergence_results, all_data, output_dir, comparis
         
         # Determine Family (Grouping)
         if comparison_mode == 'turbulence':
-            # Group by Geom.Mesh.Grid
-            # Family should be roughly config minus turbulence model
-            # Let's use get_grouping_key but ensure grid is part of it if relevant
-            # Or simpler: Geom.Mesh is the base, everything else is variations
-            # Actually, standard is Geom.Mesh.Turb.Grid.
-            # For turbulence comparison, we want to group by Geom.Mesh.Grid (so Turb varies)
-            # The existing get_grouping_key(mode='turbulence') returns Geom.Mesh
-            # If configurations differ by Grid (NG vs G), we separate them
-            grid_suffix = ".G" if data.get('grid') in ['G', 'With Grid'] else ".NG" if data.get('grid') in ['NG', 'No Grid'] else ""
-            base_family = get_grouping_key(config, mode='turbulence') + grid_suffix
+            # Group by Geom.Mesh.Grid so different turbulence models are
+            # compared on the same summary chart.
+            # get_grouping_key(mode='turbulence') already includes grid,
+            # so no extra suffix is needed.
+            base_family = get_grouping_key(config, mode='turbulence')
             
             sim_type = data['turbulence_model']
             
@@ -3888,7 +3896,8 @@ def plot_convergence_summary(convergence_results, all_data, output_dir, comparis
         ax4.set_title(f'Drag Optimal Trim Amount\n{family}', fontweight='bold')
         
         fig.legend(legend_handles, legend_labels, loc='lower center', ncol=min(len(legend_labels), 5), bbox_to_anchor=(0.5, 0.02))
-        plt.subplots_adjust(bottom=0.12, hspace=0.3)
+        plt.tight_layout()
+        plt.subplots_adjust(bottom=0.12, hspace=0.3, wspace=0.25)
         
         # Save
         plot_path = conv_dir / f"Convergence_Summary_{family}.png"
@@ -4002,7 +4011,12 @@ def _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshol
 
 def _plot_quad_aerodynamics(plot_items, output_dir, title_prefix, max_cov_threshold=None, reference_data=None):
     """Generates a 2x2 summary plot: CL, CD, L/D, and Polar."""
+    # Force non-presentation fonts for the quad layout (too cramped with large fonts)
+    global PRESENTATION_MODE
+    _saved_pres_mode = PRESENTATION_MODE
+    PRESENTATION_MODE = False
     set_plot_style()
+    PRESENTATION_MODE = _saved_pres_mode  # restore immediately so the flag is correct for later
     fig, axs = plt.subplots(2, 2, figsize=(16, 9))
     fig.suptitle(f'{title_prefix} - Aerodynamic Summary', fontweight='bold', y=0.98)
     
@@ -4130,7 +4144,9 @@ def _plot_quad_aerodynamics(plot_items, output_dir, title_prefix, max_cov_thresh
     clean_prefix = "".join([c for c in title_prefix if c.isalnum() or c in (' ', '.', '_', '-')]).strip().replace(' ', '_')
     plot_path = output_dir / f"{clean_prefix}_Aerodynamic_Summary.png"
     try:
-        plt.savefig(plot_path, bbox_inches='tight')
+        plt.savefig(plot_path, dpi=300)
     except Exception as e:
         print(f"    [WARN] Failed to save quad summary plot {plot_path.name}: {e}")
     plt.close()
+    # Restore presentation-mode styles for subsequent plots
+    set_plot_style()

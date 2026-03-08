@@ -19,25 +19,25 @@ from datetime import datetime
 # ============================================================
 
 # OUTPUT SETTINGS — where the .jou file itself is saved
-export_filename = "post_process_4.3.1.4.NG.3" # Filename (no .jou needed)
-export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.NG"
+export_filename = "post_process_5.6.1.8.G" # Filename (no .jou needed)
+export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.8.G"
 
 # --- 1. Case/Data File Locations ---
 # Base directory containing AoA_<angle> folders with case/data files
-BASE_CASE_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.NG"
+BASE_CASE_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.8.G"
 
 # Configuration name (matches your file naming convention, e.g. "4.6.1.1.NG")
-CONFIG_NAME = "4.3.1.4.NG"
+CONFIG_NAME = "5.6.1.8.G"
 
 # List of AoA values to process
 # Leave empty [] to auto-discover all AoA_* folders (supports decimals like AoA_7.5)
-AOA_LIST = [3]
+AOA_LIST = []
 
 # --- 2. XY Data Output Directory ---
 # Set to None to save exported .xy files alongside each case file
 # Or set a path to collect all exports in one place
 # Keep the folder name y_plus_pressure_data, otherwise main.py needs to be changed
-XY_OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.NG\y_plus_pressure_data"
+XY_OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.8.G\y_plus_pressure_data"
 
 # --- 3. Airfoil Wall Surface Names ---
 # Instance numbers that make up the airfoil wall
