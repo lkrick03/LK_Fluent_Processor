@@ -71,8 +71,8 @@ FRAME_DURATION = 500           # Milliseconds per frame (500 = 0.5s per AoA)
 
 # --- 5. Appearance ---
 PAPER_MODE = False          # True = omit titles (keeps whitespace + AR for paper inserts)
-LABEL_FONT_SIZE = 36          # Font size for the simulation labels
-SUBLABEL_FONT_SIZE = 30       # Font size for the config name + AoA line
+LABEL_FONT_SIZE = 38          # Font size for the simulation labels
+SUBLABEL_FONT_SIZE = 36       # Font size for the config name + AoA line
 LABEL_COLOR = (0, 0, 0)       # Black text
 LABEL_BAR_HEIGHT = 100         # Pixels reserved for the two-line label bar
 PADDING = 10                   # Pixels of padding around panels
@@ -85,7 +85,7 @@ BACKGROUND_COLOR = (255, 255, 255)  # White background
 VALUE_MAPPINGS = {
     'velocity': {4: '24.38 m/s', 5: '14.3773 m/s'},
     'mesh':     {1: 'OLD', 2: 'OLD', 3: 'Medium', 4: 'Adapted', 5: 'Unstructured', 6: 'Fine'},
-    'turbulence': {1: 'K-Omega SST', 2: 'K-Epsilon Std', 3: 'RSM'},
+    'turbulence': {1: 'SST', 2: 'K-Epsilon Std', 3: 'RSM'},
     'grid':     {'NG': 'No Grid', 'G': 'With Grid'},
 }
 
