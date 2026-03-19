@@ -1,5 +1,5 @@
 """
-Configuration settings for CFD Data Processing.
+Configuration settings for CFD Data Processing (Velocity-Based).
 """
 
 from pathlib import Path
@@ -11,7 +11,7 @@ from pathlib import Path
 NAMING_SCHEMAS = {
     # For configs like: 4.3.1.3.NG (5 parts with grid suffix)
     '5-part': {
-        'velocity': 0,       # Index 0: Velocity number
+        'aoa': 0,            # Index 0: AoA number (SWAPPED from velocity)
         'mesh': 1,           # Index 1: Mesh number
         'turbulence': 2,     # Index 2: Turbulence model number
         'version': 3,        # Index 3: Version number
@@ -19,7 +19,7 @@ NAMING_SCHEMAS = {
     },
     # For configs like: 4.3.1.2 (4 parts, no grid suffix)
     '4-part': {
-        'velocity': 0,       # Index 0: Velocity number
+        'aoa': 0,            # Index 0: AoA number (SWAPPED from velocity)
         'mesh': 1,           # Index 1: Mesh number
         'turbulence': 2,     # Index 2: Turbulence model number
         'version': 3,        # Index 3: Version number
@@ -30,22 +30,28 @@ NAMING_SCHEMAS = {
 # Select which schema to use based on your data format
 ACTIVE_SCHEMA = '5-part'  # Change to '5-part' for configs like 4.3.1.3.NG
 
+# Specify whether Drag should be inverted (multiply by -1)
+INVERT_DRAG_SIGN = True
+
 # Legacy alias for backward compatibility
 POSITION_MAP = NAMING_SCHEMAS[ACTIVE_SCHEMA]
 
 # Value Mappings
 VALUE_MAPPINGS = {
-    'velocity': {
-        4: '24.38',
-        5: '14.3773',
+    'aoa': {                 # SWAPPED from velocity
+        1: '0',
+        2: '5',
+        3: '10',
+        4: '15',
+        5: '20'
     },
     'mesh': {
-        1: 'OLD',
-        2: 'OLD',
-        3: 'Y+ 30',
-        4: 'Adapted',
-        5: 'Unstrucutred',
-        6: 'Y+ 5'
+        1: '4V6',
+        2: '4-inch-half-fin',
+        3: '4-inch-full-fin',
+        4: '6-inch-third-fin',
+        5: '6-inch-half-fin',
+        6: '6-inch-full-fin'
     },
     'turbulence': {
         1: 'SST',
@@ -62,8 +68,8 @@ VALUE_MAPPINGS = {
         7: 'V7',
     },
     'grid': {
-        'NG': 'No Grid',
-        'G': 'With Grid',
+        'NG': 'No Brake',
+        'G': 'With Brake',
     }
 }
 
@@ -81,12 +87,12 @@ COMPARISON_CONFIGS = {
 # Derived Data Manipulations
 # Each entry defines how to create a synthetic data series using existing inputs.
 # Example below (disabled) would divide No-Grid (NG) results by With-Grid (G) results
-# for every AoA within the same geometry/mesh/turbulence/version grouping.
+# for every Velocity within the same geometry/mesh/turbulence/version grouping.
 DATA_MANIPULATIONS = [
     {
         'name': 'NG_div_G',
         'enabled': False,          # Set True to activate
-        'group_by': ['geometry', 'mesh', 'turbulence_model', 'version', 'aoa'],
+        'group_by': ['geometry', 'mesh', 'turbulence_model', 'version', 'velocity'],  # SWAPPED aoa to velocity
         'numerator_grid': 'NG',    # Accepts either shorthand (NG/G) or descriptive ('No Grid')
         'denominator_grid': 'G',
         'operation': 'divide',     # Supported: divide, subtract, percent_difference
@@ -101,30 +107,13 @@ DATA_MANIPULATIONS = [
 # Set ACTIVE_PRESET in main.py to the key of the preset you want to run, or None to use manual settings.
 
 RUN_PRESETS = {
-    "single_4.3.1.G": {
-        "name": "4.3.1.G Single Run",
+    "single_1.1.1.2.G": {
+        "name": "1.1.1.2.G Single Run (Velocity)",
         "data_sources": [
-            Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.3.G"),
-            Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.G"),
-            Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.5.G"),
-            Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.6.G"),     
+            r"C:\Users\lukek\Documents\Rocketry_CFD\TRINITY\directories\unprocessed_data\1.1.1.2.G",
         ],
-        "output_dir": Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.4\4.3\4.3.1\4.3.1.G"),
+        "output_dir": Path(r"C:\Users\lukek\Documents\Rocketry_CFD\TRINITY\directories\processed_data\1.1.1.2.G"),
         "comparison_mode": "single",
-        "aoa_filter": []
+        "velocity_filter": []  # SWAPPED from aoa_filter
     }
-    #"turbulence_4.3": {
-        #"name": "4.3 Turbulence Comparison",
-        #"data_sources": [
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.NG"),
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.4.NG"),
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.3.4.NG"),
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.G"),
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.4.G"),
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.3.4.G"),
-        #],
-        #"output_dir": Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Comparisons\2414.6.4.3\Turbulence_comp"),
-        #"comparison_mode": "turbulence",
-        #"aoa_filter": [0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20]
-    #}
 }

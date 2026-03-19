@@ -166,7 +166,7 @@ def generate_journal_content():
 
 (define (deg-to-rad deg) (* deg (/ 3.14159265359 180.0)))
 (define (ensure-directory dir-path)
-  (system (format #f "mkdir \\"~a\\"" dir-path)))
+  (system (format #f "mkdir -p \\"~a\\"" dir-path)))
 
 ; Create base directory
 (ensure-directory base-output-dir)

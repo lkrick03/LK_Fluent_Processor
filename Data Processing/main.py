@@ -25,76 +25,52 @@ from cfd_functions import (
     read_fluent_fvp, plot_pathlines, plot_pathline_comparison,
     read_fluent_residuals, plot_residuals
 )
-from config import POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS, DATA_MANIPULATIONS, NAMING_SCHEMAS, ACTIVE_SCHEMA
+from config import (
+    POSITION_MAP, VALUE_MAPPINGS, COMPARISON_CONFIGS, DATA_MANIPULATIONS,
+    NAMING_SCHEMAS, ACTIVE_SCHEMA, RUN_PRESETS
+)
 
 
 # ==================== USER CONFIGURATION ====================
 
-# Input/Output Directories
-# DATA_SOURCES acts as a priority list. If duplicates exist, the one with the higher Version number wins.
-# If versions are identical, they are treated as duplicates (this script logic handles versioning, not path priority).
-DATA_SOURCES = [
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.3.NG"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.NG"), #path is wrong for all of these, the grid data is wrong
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.5.NG"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.3.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.5.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.6.G"),
+# Set ACTIVE_PRESET to the key of the preset you want to run, 
+# or None to use manual settings below.
+ACTIVE_PRESET = "single_4.3.1.G"
 
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\Non_HPC\4.3.1.2"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\Non_HPC\4.3.2.1"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\Non_HPC\4.3.3.1"),
+if ACTIVE_PRESET and ACTIVE_PRESET in RUN_PRESETS:
+    preset = RUN_PRESETS[ACTIVE_PRESET]
+    print(f"Loading Configuration Preset: '{preset.get('name', ACTIVE_PRESET)}'")
+    DATA_SOURCES = preset.get("data_sources", [])
+    OUTPUT_DIR = preset.get("output_dir", Path("."))
+    COMPARISON_MODE = preset.get("comparison_mode", "single")
+    AOA_FILTER = preset.get("aoa_filter", [])
+else:
+    print("Loading Manual Configuration (ACTIVE_PRESET is None or Invalid)")
+    
+    # Input/Output Directories
+    # DATA_SOURCES acts as a priority list. If duplicates exist, the one with the higher Version number wins.
+    # If versions are identical, they are treated as duplicates.
+    DATA_SOURCES = [
+        # Example: Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.1.NG"),
+    ]
+    OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Comparisons\Manual_Run")
 
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.1.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.2.G"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.3.G"),
+    # Comparison Mode
+    # Options: 'single', 'turbulence', 'grid', 'mesh', 'version', 'mixed', 'family_grid'
+    COMPARISON_MODE = 'grid'
 
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.1.NG"),
-
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.4.6\4.6.1.1.G"),
-
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.4.6\4.6.1.1.NG"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.4.6\4.6.1.2.NG"),
-    #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.4.6\4.6.1.3.NG"),
-
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.1.NG"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.2.NG"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.3.NG"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.4.NG"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.5.NG"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.6.NG"),
-
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.1.G"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.2.G"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.3.G"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.4.G"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.5.G"),    
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.6.G"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.7.G"),
-    Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.8.G"),        
-
-]
-OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Comparisons\2414.6.5\Grid_comp")
+    # AoA Filter: Set to a list of angles (e.g., [0, 2, 4]) to only process those AoAs.
+    # Set to [] or None to process all.
+    AOA_FILTER = []
 
 # Configuration Extraction Method
 CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
 
-# Comparison Mode
-# Options: 'single', 'turbulence', 'grid', 'mesh', 'version', 'mixed', 'family_grid'
-# - single: Standard behavior (highest version wins).
-# - turbulence: Groups by Geometry.Mesh to compare turbulence models side-by-side.
-# - grid: Groups by Geometry.Mesh to calculate and compare Grid Efficiency Ratios (L/D Improvement) across turbulence models.
-# - mesh: Groups by Geometry.Turbulence.Grid to compare mesh types (Medium, Adapted, Fine...) side-by-side.
-# - version: Groups by Geometry.Mesh.Turbulence.Grid to compare versions (V1, V2...) side-by-side.
-# - mixed: Smart detection — groups by constant attributes, labels by whatever varies (e.g. Mesh + Turbulence).
-# - family_grid: Multiple families with G/NG — calculates grid efficiency per family and overlays all on one combined graph.
-COMPARISON_MODE = 'grid'
-
-# AoA Filter: Set to a list of angles (e.g., [0, 2, 4]) to only process those AoAs.
-# Set to [] or None to process all.
-
-AOA_FILTER = [0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20]
+# ==================== REFERENCE DATA (Experimental / Published) ====================
+# Set PLOT_REFERENCE_DATA = True to overlay reference data on coefficient graphs.
+# Each entry in the list is one reference dataset with a label, AoA, C_L, and C_D arrays.
+# You can add multiple datasets (e.g., different experiments, different Re).
+PLOT_REFERENCE_DATA = False       # Toggle on/off
 
 # Path to folder containing .xy files (if not in source folders)
 # Auto-discovered: scans each DATA_SOURCES path for a 'y_plus_pressure_data' subfolder
@@ -146,11 +122,7 @@ VISCOSITY = 1.7894e-5  # [kg/(m·s)] Dynamic viscosity of air at sea level (15°
 REYNOLDS_NUMBER = (AIR_DENSITY * VELOCITY * CHORD) / VISCOSITY
 print(f"Reynolds Number: {REYNOLDS_NUMBER:,.0f}")
 
-# ==================== REFERENCE DATA (Experimental / Published) ====================
-# Set PLOT_REFERENCE_DATA = True to overlay reference data on coefficient graphs.
-# Each entry in the list is one reference dataset with a label, AoA, C_L, and C_D arrays.
-# You can add multiple datasets (e.g., different experiments, different Re).
-PLOT_REFERENCE_DATA = False       # Toggle on/off
+
 
 REFERENCE_DATA = [
     {
