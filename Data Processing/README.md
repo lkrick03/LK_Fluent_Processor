@@ -7,6 +7,16 @@
 This Python workflow automates the processing of Fluent CFD simulation data. It loads lift/drag force files, applies Angle of Attack (AoA) corrections, performs convergence analysis, and generates publication-ready Excel summaries and coefficient graphs.
 
 ## Quick Start
+
+### Environment Setup
+```powershell
+cd "Data Processing"
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### Running the Pipeline
 1.  Open `main.py`.
 2.  Update `DATA_SOURCES` with the paths to your simulation folders.
 3.  Set your desired `COMPARISON_MODE` (see below).

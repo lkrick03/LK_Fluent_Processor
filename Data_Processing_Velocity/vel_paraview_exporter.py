@@ -1,14 +1,15 @@
 r"""
 Automated ParaView Contour Exporter (pvpython)
 ==============================================
-This script automatically crawled Fluent AoA directories, loads 
+This script automatically crawled Fluent Mach directories, loads 
 .cas.h5 and .dat.h5 files into ParaView, applies colormaps, 
 and exports high-resolution contour plots without Fluent's TUI.
 
 Usage:
     Run this script using ParaView's python engine (pvpython), NOT standard python.
-    "C:\Program Files\ParaView 6.1.0\bin\pvpython.exe" paraview_contour_exporter.py
-    & "C:\Program Files\ParaView 6.1.0\bin\pvpython.exe" "c:\Users\lukek\OneDrive - Liberty University\Group-F.L.U.I.D. Research - GRID-FINS - GRID-FINS\Python\Output\paraview_contour_exporter.py"
+    "C:\Users\lukek\Downloads\ParaView-6.1.0-RC1-Windows-Python3.12-msvc2017-AMD64\ParaView-6.1.0-RC1-Windows-Python3.12-msvc2017-AMD64\bin\pvpython.exe" vel_paraview_exporter.py
+    & "C:\Users\lukek\Downloads\ParaView-6.1.0-RC1-Windows-Python3.12-msvc2017-AMD64\ParaView-6.1.0-RC1-Windows-Python3.12-msvc2017-AMD64\bin\pvpython.exe" "C:\Users\lukek\OneDrive - Liberty University\Group-F.L.U.I.D. Research - GRID-FINS - GRID-FINS\Python\Data_Processing_Velocity\vel_paraview_exporter.py"
+    
     This is to be run after post prcoessing is done, take the individuall families and run them
 """
 
@@ -28,7 +29,7 @@ except ImportError:
 # ============================================================
 
 # --- 1. Base Locations & Naming ---
-# List of parent directories containing the AoA_* folders.
+# List of parent directories containing the Mach_* folders.
 # Each entry is processed in order with its matching CONFIG_NAME and IMAGE_OUTPUT_DIR. Singular, should not be taking multipile families
 BASE_CASE_DIRS = [
     r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\unprocessed_data\1.2.1.2.NG",
@@ -44,8 +45,8 @@ IMAGE_OUTPUT_DIRS = [
     r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\1.2.1.2.NG\Countour_Plots\ParaView",
 ]
 
-# List of AoA values to process. Leave empty [] to auto-discover all AoA_* folders
-AOA_LIST = []
+# List of Mach values to process. Leave empty [] to auto-discover all Mach folders
+MACH_LIST = []
 
 # --- 2. Variables and Colors ---
 # Which variables to plot. Note: ParaView might capitalize Fluent variables
@@ -79,48 +80,48 @@ COLORMAP_NAME = "Cool to Warm"
 # 5. If using 2D Parallel Projection, copy the "Parallel Scale" value.
 # Use tools start trace to get the camera position and focal point
 #
-# REFERENCE_AOA: The AoA (degrees) at which you calibrated these camera views.
-# The camera will automatically track the airfoil as it rotates to other AoAs.
+# REFERENCE_MACH: The Mach number at which you calibrated these camera views.
+# The camera will automatically track the airfoil as it rotates to other Mach numbers.
 # Set to 0 if you set up the views with the airfoil at 0 degrees.
-REFERENCE_AOA = 5
+#REFERENCE_MACH = 0.0
 CUSTOM_VIEWS = {
-    "airfoil_center": {
-        "Position": [0.27645901732693606, 0.008305101050527012, 5.945396079401388],
-        "FocalPoint": [0.27645901732693606, 0.008305101050527012, 0.42671999335289],
-        "ParallelScale": 0.2568992296621107  # Adjust this to control how "zoomed in" the parallel view is
+    "rocket_center": {
+        "Position": [0.7424588203430176, -1.2962841987609837, -28.317022313687893],
+        "FocalPoint": [0.9309403578196692, 1.6695282291804414, -0.9662936305007656],
+        "ParallelScale": 2  # Adjust this to control how "zoomed in" the parallel view is
     },
-    "leading_edge_zoom": {
-        "Position": [-0.0005004547891817193, 0.003047385406824787, 5.945396079401388],  # Example: Moved left towards the leading edge
-        "FocalPoint": [-0.0005004547891817193, 0.003047385406824787, 0.42671999335289],
-        "ParallelScale":0.06764959637718926  # Very zoomed in
+    "nose_cone_zoom": {
+        "Position": [0.7424588203430176, -1.2962841987609837, -28.317022313687893],  # Example: Moved left towards the leading edge
+        "FocalPoint": [0.6997880334720208, 3.0038919986204538, -2.962237672544282],
+        "ParallelScale":1  # Very zoomed in
     },
-    "trailing_edge_zoom": {
-        "Position": [0.3359936486721706, 0.003799047588793557, 5.945396079401388],  # Example: Moved left towards the leading edge
-        "FocalPoint": [0.3359936486721706, 0.003799047588793557, 0.42671999335289],
-        "ParallelScale": 0.12  # Very zoomed in
+    "fins_zoom": {
+        "Position": [0.8337072418449709, -10.491903004141665, -82.53641327595919],  # Example: Moved left towards the leading edge
+        "FocalPoint": [0.7407496759448634, 0.08788099655558666, -4.078036480277453],
+        "ParallelScale": 1  # Very zoomed in
     }
     
 }
 
 # Which views to apply to which variable (can be one or multiple in a list!):
 VARIABLE_VIEWS = {
-    #"SV_P": ["airfoil_center", "leading_edge_zoom"],
-    "Velocity_Magnitude": ["trailing_edge_zoom", "airfoil_center"],
-    "Mach_Number": ["trailing_edge_zoom", "airfoil_center"]
+    #"SV_P": ["rocket_center", "nose_cone_zoom"],
+    "Velocity_Magnitude": ["rocket_center", "nose_cone_zoom", "fins_zoom"],
+    "Mach_Number": ["rocket_center", "nose_cone_zoom", "fins_zoom"]
 }
 
-# Which views should shift vertically to track the airfoil across AoAs.
+# Which views should shift vertically to track the airfoil across Mach numbers.
 # Views NOT listed here will use their exact fixed camera positions.
-AOA_TRACKING_VIEWS = [] #trailing_edge_zoom
+MACH_TRACKING_VIEWS = []
 
 # --- 4. Color Re-Scaling (For GIF Stability) ---
 # By default, ParaView recalculates the Min/Max color limits for EVERY Angle of Attack.
 # This causes the global fluid color (like blue pressure) to "flash" drastically in GIFs.
-# To lock the colors consistently across all AoAs, define your absolute Min/Max values here!
+# To lock the colors consistently across all Mach numbers, define your absolute Min/Max values here!
 # Leave a variable OUT of this dictionary to let it auto-scale instead.
 VARIABLE_RANGES = {
-    "SV_P": [-370,140], # -370 and 140 for Velocity 14.3773,-1300 and 400 for 24.38
-    "Velocity_Magnitude": [-1.5, 22], # -1.5 and 22 for 14.3773, -14 and 38 for 24.38
+    "SV_P": [-370,140], # -370 and 140 for Mach 14.3773,-1300 and 400 for 24.38
+    "Velocity_Magnitude": [-180,400], # -1.5 and 22 for Mach 14.3773, -14 and 38 for 24.38
     "Mach_Number": [0.0, 1.5]
 }
 
@@ -130,7 +131,7 @@ RESOLUTION_Y = 1080
 BACKGROUND_COLOR = [1.0, 1.0, 1.0]  # White
 
 # --- 6. Streamline Settings ---
-# Set to True to also render streamline plots for each AoA
+# Set to True to also render streamline plots for each Mach number
 ENABLE_STREAMLINES = False  
 
 # Seed line: streamlines will be seeded along this line segment.
@@ -163,12 +164,12 @@ STREAMLINE_SURFACE_COLOR = [0.8, 0.8, 0.8]  # Light gray
 # SCRIPT LOGIC
 # ============================================================
 
-def adjust_camera_for_aoa(view_settings, current_aoa, reference_aoa):
+def adjust_camera_for_mach(view_settings, current_mach, reference_mach):
     """
     Shift camera Position and FocalPoint vertically to follow the airfoil.
     
-    As the airfoil is counter-rotated by -AoA, its center drops in Y.
-    This computes the Y offset from the reference AoA and shifts the camera
+    As the airfoil is counter-rotated by -Mach, its center drops in Y.
+    This computes the Y offset from the reference Mach and shifts the camera
     down (or up) to keep the airfoil centered. No camera rotation — just a
     pure vertical translation.
     
@@ -176,9 +177,9 @@ def adjust_camera_for_aoa(view_settings, current_aoa, reference_aoa):
     """
     # How much the focal point's X position drops in Y due to rotation
     # Point (x, y) rotated by θ: new_y = x*sin(θ) + y*cos(θ)
-    # Delta from reference: we compute the Y shift at both AoAs and take the difference
-    ref_rad = math.radians(-reference_aoa)
-    cur_rad = math.radians(-current_aoa)
+    # Delta from reference: we compute the Y shift at both Mach numbers and take the difference
+    ref_rad = math.radians(-reference_mach)
+    cur_rad = math.radians(-current_mach)
     
     pos = list(view_settings["Position"])
     foc = list(view_settings["FocalPoint"])
@@ -187,7 +188,7 @@ def adjust_camera_for_aoa(view_settings, current_aoa, reference_aoa):
     track_x = foc[0]
     track_y = foc[1]
     
-    # Y position of the tracked point at reference vs. current AoA
+    # Y position of the tracked point at reference vs. current Mach
     ref_y = track_x * math.sin(ref_rad) + track_y * math.cos(ref_rad)
     cur_y = track_x * math.sin(cur_rad) + track_y * math.cos(cur_rad)
     
@@ -199,26 +200,26 @@ def adjust_camera_for_aoa(view_settings, current_aoa, reference_aoa):
     
     return pos, foc
 
-def discover_aoa_folders(base_dir):
-    """Auto-discover AoA values from AoA_* folders in base_dir."""
-    aoa_values = []
-    aoa_pattern = re.compile(r'^AoA_(-?\d+\.?\d*)$')
+def discover_mach_folders(base_dir):
+    """Auto-discover Mach values from Mach_* folders in base_dir."""
+    mach_values = []
+    mach_pattern = re.compile(r'^Mach_(-?\d+\.?\d*)$')
     
     if not os.path.exists(base_dir):
         print(f"  [WARNING] Base directory not found: {base_dir}")
-        return aoa_values
+        return mach_values
     
     for entry in os.listdir(base_dir):
         if os.path.isdir(os.path.join(base_dir, entry)):
-            match = aoa_pattern.match(entry)
+            match = mach_pattern.match(entry)
             if match:
                 val = float(match.group(1))
                 if val == int(val):
                     val = int(val)
-                aoa_values.append(val)
+                mach_values.append(val)
     
-    aoa_values.sort(key=lambda x: float(x))
-    return aoa_values
+    mach_values.sort(key=lambda x: float(x))
+    return mach_values
 
 
 def setup_paraview_scene(data_source, var_fluent_name):
@@ -258,15 +259,15 @@ def setup_paraview_scene(data_source, var_fluent_name):
         opacityMap = GetOpacityTransferFunction(var_fluent_name)
         opacityMap.RescaleTransferFunction(min_val, max_val)
     else:
-        # Otherwise, dynamically auto-scale to just this specific AoA's data
+        # Otherwise, dynamically auto-scale to just this specific Mach's data
         colorMap.RescaleTransferFunctionToDataRange(True)
     
     return renderView
 
 
-def render_streamlines(smoother, aoa, aoa_str, config_name, image_output_dir):
+def render_streamlines(smoother, mach, mach_str, config_name, image_output_dir):
     """
-    Renders streamline visualizations for the current AoA case.
+    Renders streamline visualizations for the current Mach case.
     
     Uses the smoothed data (Point Data) to build a velocity vector,
     then traces streamlines from a configurable seed line.
@@ -350,9 +351,9 @@ def render_streamlines(smoother, aoa, aoa_str, config_name, image_output_dir):
             Render(renderView)
             view_settings = CUSTOM_VIEWS[view_name]
             
-            if view_name in AOA_TRACKING_VIEWS:
-                adj_pos, adj_foc = adjust_camera_for_aoa(
-                    view_settings, float(aoa), REFERENCE_AOA
+            if view_name in MACH_TRACKING_VIEWS:
+                adj_pos, adj_foc = adjust_camera_for_mach(
+                    view_settings, float(mach), REFERENCE_MACH
                 )
                 renderView.CameraPosition = adj_pos
                 renderView.CameraFocalPoint = adj_foc
@@ -368,10 +369,10 @@ def render_streamlines(smoother, aoa, aoa_str, config_name, image_output_dir):
         
         RenderAllViews()
         
-        aoa_output_dir = os.path.join(image_output_dir, f"AoA_{aoa_str}")
-        os.makedirs(aoa_output_dir, exist_ok=True)
+        mach_output_dir = os.path.join(image_output_dir, f"mach_{mach_str}")
+        os.makedirs(mach_output_dir, exist_ok=True)
         
-        output_file = os.path.join(aoa_output_dir, f"{config_name}_AoA_{aoa_str}_Streamlines_{view_name}.png")
+        output_file = os.path.join(mach_output_dir, f"{config_name}_mach_{mach_str}_Streamlines_{view_name}.png")
         SaveScreenshot(output_file, renderView, ImageResolution=[RESOLUTION_X, RESOLUTION_Y])
         print(f"    Saved: {output_file}")
     
@@ -409,47 +410,45 @@ def main():
         print(f"  Output : {image_output_dir}")
         print(f"{'=' * 70}")
 
-        # 1. Determine AoA List
-        aoa_list = AOA_LIST
-        if not aoa_list:
-            print("AOA_LIST is empty — auto-discovering AoA folders...")
-            aoa_list = discover_aoa_folders(base_case_dir)
-            if not aoa_list:
-                print(f"[WARNING] No AoA_* folders found in {base_case_dir}. Skipping this directory.")
+        # 1. Determine Mach List
+        mach_list = MACH_LIST
+        if not mach_list:
+            print("MACH_LIST is empty — auto-discovering Mach folders...")
+            mach_list = discover_mach_folders(base_case_dir)
+            if not mach_list:
+                print(f"[WARNING] No Mach_* folders found in {base_case_dir}. Skipping this directory.")
                 continue
-        print(f"Found {len(aoa_list)} AoA cases to process: {aoa_list}")
+        print(f"Found {len(mach_list)} Mach cases to process: {mach_list}")
 
         # 2. Make Output Directory
         os.makedirs(image_output_dir, exist_ok=True)
 
-        # 3. Process Each AoA Case
-        for aoa in aoa_list:
-            aoa_str = str(aoa) if isinstance(aoa, int) else f"{aoa}"
-            print(f"\n--- Loading AoA: {aoa_str} ---")
+        # 3. Process Each Mach Case
+        for mach in mach_list:
+            mach_str = str(mach) if isinstance(mach, int) else f"{mach}"
+            print(f"\n--- Loading Mach: {mach_str} ---")
             
-            case_dir = os.path.join(base_case_dir, f"AoA_{aoa_str}")
-            case_file = os.path.join(case_dir, f"{config_name}.{aoa_str}.cas.h5")
+            case_dir = os.path.join(base_case_dir, f"Mach_{mach_str}")
+            case_file = os.path.join(case_dir, f"{config_name}.{mach_str}.cas.h5")
             
             if not os.path.exists(case_file):
                 print(f"  [WARNING] Case file not found: {case_file}. Skipping.")
                 continue
 
-            fluentCase = FluentCFFCaseReader(registrationName=f"AoA_{aoa_str}_Data", FileName=case_file)
+            fluentCase = FluentCFFCaseReader(registrationName=f"mach_{mach_str}_Data", FileName=case_file)
             
             # ACTUALLY parse the file data from the hard drive
             fluentCase.UpdatePipeline()
             
-            # Rotate the geometry so the airfoil is flat
-            transform = Transform(registrationName="Rotated_Airfoil", Input=fluentCase)
-            # Fluent AOA is usually a rotation of the incoming flow, meaning the airfoil is technically flat,
-            # but if the airfoil itself was rotated, we counter-rotate it here around the Z axis:
-            transform.Transform.Rotate = [0.0, 0.0, -float(aoa)]
-            transform.UpdatePipeline()
+            # Rotate the geometry so the airfoil is flat (DISABLED for Mach plots)
+            # transform = Transform(registrationName="Rotated_Airfoil", Input=fluentCase)
+            # transform.Transform.Rotate = [0.0, 0.0, -float(mach)]
+            # transform.UpdatePipeline()
 
             # SMOOTHING STEP: Fluent data is usually "Cell Data" (blocky).
             # We must interpolate it to "Point Data" (vertices) so ParaView can draw smooth gradients
             # instead of seeing the borders of the mesh cells!
-            smoother = CellDatatoPointData(registrationName="Smoothed_Data", Input=transform)
+            smoother = CellDatatoPointData(registrationName="Smoothed_Data", Input=fluentCase)
             smoother.ProcessAllArrays = 1
             smoother.UpdatePipeline()
 
@@ -481,46 +480,46 @@ def main():
                 
                 # --- CAMERA ANGLE SECTION ---
                 for view_name in views_to_render:
-                    # Set parallel projection for true 2D looking plots (no perspective distortion)
-                    renderView.CameraParallelProjection = 1
-                    
                     # Check if this view exists in CUSTOM_VIEWS
                     if view_name in CUSTOM_VIEWS:
-                        # Force a render first so ParaView initializes the view bounds
-                        Render(renderView)
-                        
                         view_settings = CUSTOM_VIEWS[view_name]
                         
-                        # Only shift camera for views listed in AOA_TRACKING_VIEWS
-                        if view_name in AOA_TRACKING_VIEWS:
-                            adj_pos, adj_foc = adjust_camera_for_aoa(
-                                view_settings, float(aoa), REFERENCE_AOA
-                            )
-                            renderView.CameraPosition = adj_pos
-                            renderView.CameraFocalPoint = adj_foc
-                        else:
-                            renderView.CameraPosition = view_settings["Position"]
-                            renderView.CameraFocalPoint = view_settings["FocalPoint"]
+                        # Setup Parallel Projection
+                        renderView.CameraParallelProjection = 1
                         
+                        # Apply initial camera settings
+                        renderView.CameraPosition = view_settings["Position"]
+                        renderView.CameraFocalPoint = view_settings["FocalPoint"]
                         renderView.CameraParallelScale = view_settings["ParallelScale"]
+                        # Default to User-Specified Orientation if not in dictionary
+                        renderView.CameraViewUp = view_settings.get("ViewUp", [-1.0, 0.0, 0.0])
                         
-                        # Update the camera explicitly
+                        # Force a render to initialize the scene, then RE-APPLY settings
+                        # to ensure ParaView's automatic reset doesn't overwrite our custom view.
+                        Render(renderView)
+                        
+                        renderView.CameraPosition = view_settings["Position"]
+                        renderView.CameraFocalPoint = view_settings["FocalPoint"]
+                        renderView.CameraParallelScale = view_settings["ParallelScale"]
+                        renderView.CameraViewUp = view_settings.get("ViewUp", [-1.0, 0.0, 0.0])
+                        
+                        # Update the view explicitly
                         renderView.Update()
-                        
                         print(f"    (Applied custom view: {view_name})")
                     else:
                         # Fallback: Just fit the whole domain to the screen
-                        renderView.ResetCamera() 
-                    
+                        print(f"    (View '{view_name}' not found in CUSTOM_VIEWS, resetting camera...)")
+                        renderView.ResetCamera()
+                        renderView.Update()                    
                     # Render and Save Picture
                     RenderAllViews()
                     
-                    # Save into individual AoA folders
-                    aoa_output_dir = os.path.join(image_output_dir, f"AoA_{aoa_str}")
-                    os.makedirs(aoa_output_dir, exist_ok=True)
+                    # Save into individual Mach folders
+                    mach_output_dir = os.path.join(image_output_dir, f"mach_{mach_str}")
+                    os.makedirs(mach_output_dir, exist_ok=True)
                     
                     # Output filename now includes the view name so they don't overwrite each other!
-                    output_file = os.path.join(aoa_output_dir, f"{config_name}_AoA_{aoa_str}_{var_label}_{view_name}.png")
+                    output_file = os.path.join(mach_output_dir, f"{config_name}_mach_{mach_str}_{var_label}_{view_name}.png")
                     SaveScreenshot(output_file, renderView, ImageResolution=[RESOLUTION_X, RESOLUTION_Y])
                 
                 # Clean up the view so variables don't overlap on the next loop iteration
@@ -528,15 +527,15 @@ def main():
 
             # --- STREAMLINE RENDERING ---
             if ENABLE_STREAMLINES:
-                render_streamlines(smoother, aoa, aoa_str, config_name, image_output_dir)
+                render_streamlines(smoother, mach, mach_str, config_name, image_output_dir)
 
-            # Destroy the loaded data objects to free up RAM before the next AoA
+            # Destroy the loaded data objects to free up RAM before the next Mach
             Delete(mach_calculator)
             Delete(calculator)
             Delete(smoother)
-            Delete(transform)
+            # Delete(transform)
             Delete(fluentCase)
-            del mach_calculator, calculator, smoother, transform, fluentCase
+            del mach_calculator, calculator, smoother, fluentCase
 
     print("\n[OK] ParaView processing completed successfully!")
     print(f"Images saved to directories: {IMAGE_OUTPUT_DIRS}")

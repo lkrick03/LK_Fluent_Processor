@@ -882,7 +882,7 @@ def load_drag_data(root_dirs, config_extraction_method, position_map, value_mapp
             validation_report['total_folders_found'] += 1
             
             # 1. Validate folder structure
-            is_valid, lift_file, drag_file, case_file, error_msg = validate_velocity_folder(dirpath, filenames)
+            is_valid, _, drag_file, case_file, error_msg = validate_velocity_folder(dirpath, filenames)
             
             if not is_valid:
                 validation_report['skipped_folders'] += 1
@@ -1100,10 +1100,9 @@ def apply_data_manipulations(all_data, manipulation_rules, value_mappings):
                 missing_pairs += 1
                 continue
 
-            new_lift = _apply_series_operation(num_entry['data']['lift'], den_entry['data']['lift'], operation)
             new_drag = _apply_series_operation(num_entry['data']['drag'], den_entry['data']['drag'], operation)
 
-            if not new_lift or not new_drag:
+            if not new_drag:
                 missing_pairs += 1
                 continue
 
@@ -1113,8 +1112,7 @@ def apply_data_manipulations(all_data, manipulation_rules, value_mappings):
             key = (derived_config_name, num_entry['velocity'])
 
             derived_entries[key] = {
-                'lift': new_lift,
-                'drag': new_drag,
+                                'drag': new_drag,
                 'turbulence_model': num_entry['data']['turbulence_model'],
                 'geometry': num_entry['data']['geometry'],
                 'mesh': num_entry['data']['mesh'],
@@ -1608,26 +1606,19 @@ def create_data_summary_sheet(wb, all_data, num_iterations, convergence_results)
     def get_optimized_data(config, velocity, data):
         if convergence_results and (config, velocity) in convergence_results:
             conv = convergence_results[(config, velocity)]
-            # lift_min_cov_idx = np.argmin(conv['lift']['cov'])
             drag_min_cov_idx = np.argmin(conv['drag']['cov'])
-            
-            # optimal_lift_trim
-            optimal_drag_trim = conv['drag']['iterations_removed'][drag_min_cov_idx]
-            optimal_trim = optimal_drag_trim
-            
-            lift_values = data['lift'][optimal_trim:]
+            optimal_trim = conv['drag']['iterations_removed'][drag_min_cov_idx]
             drag_values = data['drag'][optimal_trim:]
         else:
-            lift_values = data['lift'][-num_iterations:] if len(data['lift']) >= num_iterations else data['lift']
             drag_values = data['drag'][-num_iterations:] if len(data['drag']) >= num_iterations else data['drag']
-        return lift_values, drag_values
+        return drag_values
     
     # Group data by base configuration
     base_config_data = defaultdict(list)
     for (config, velocity), data in all_data.items():
         base_config = get_simulation_family_name(config)
         
-        lift_values, drag_values = get_optimized_data(config, velocity, data)
+        drag_values = get_optimized_data(config, velocity, data)
         
         
         drag_mean = np.mean(drag_values) if drag_values else 0
@@ -1638,7 +1629,7 @@ def create_data_summary_sheet(wb, all_data, num_iterations, convergence_results)
             'velocity': velocity,
             'velocity_num': extract_velocity_number(velocity),
             'turbulence_model': data['turbulence_model'],
-            'num_points': len(lift_values),
+            'num_points': len(drag_values),
             'drag_mean': drag_mean,
             'drag_cov': drag_cov
         })
@@ -1660,7 +1651,7 @@ def create_data_summary_sheet(wb, all_data, num_iterations, convergence_results)
     ws = wb.active
     ws.title = 'Data Summary'
     
-    columns = ['Turbulence Model', 'Velocity', 'Drag Mean (N)', 'Drag COV (%)', 'Num Points']
+    columns = ['Turbulence Model', 'Mach Number', 'Drag Mean (N)', 'Drag COV (%)', 'Num Points']
     current_row = 1
     
     for base_config in sorted_base_configs:
@@ -1770,19 +1761,12 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
     def get_optimized_data(config, velocity, data):
         if convergence_results and (config, velocity) in convergence_results:
             conv = convergence_results[(config, velocity)]
-            # lift_min_cov_idx = np.argmin(conv['lift']['cov'])
             drag_min_cov_idx = np.argmin(conv['drag']['cov'])
-            
-            # optimal_lift_trim
-            optimal_drag_trim = conv['drag']['iterations_removed'][drag_min_cov_idx]
-            optimal_trim = optimal_drag_trim
-            
-            lift_values = data['lift'][optimal_trim:]
+            optimal_trim = conv['drag']['iterations_removed'][drag_min_cov_idx]
             drag_values = data['drag'][optimal_trim:]
         else:
-            lift_values = data['lift'][-num_iterations:] if len(data['lift']) >= num_iterations else data['lift']
             drag_values = data['drag'][-num_iterations:] if len(data['drag']) >= num_iterations else data['drag']
-        return lift_values, drag_values
+        return drag_values
     
     # Group by base config and turbulence model
     comparison_data = defaultdict(lambda: defaultdict(dict))
@@ -1817,7 +1801,7 @@ def create_turbulence_comparison_sheet(wb, all_data, num_iterations, convergence
         else:
             sim_type = data['turbulence_model']
         
-        lift_values, drag_values = get_optimized_data(config, velocity, data)
+        drag_values = get_optimized_data(config, velocity, data)
         
         
         drag_mean = np.mean(drag_values) if len(drag_values) > 0 else 0
@@ -2117,19 +2101,12 @@ def create_version_comparison_sheet(
 
         if convergence_results and key in convergence_results:
             conv = convergence_results[key]
-            lift_idx = np.argmin(conv['lift']['cov'])
             drag_idx = np.argmin(conv['drag']['cov'])
-            optimal_trim = max(
-                conv['lift']['iterations_removed'][lift_idx],
-                conv['drag']['iterations_removed'][drag_idx],
-            )
-            lift_values = data['lift'][optimal_trim:]
+            optimal_trim = conv['drag']['iterations_removed'][drag_idx]
             drag_values = data['drag'][optimal_trim:]
         else:
-            lift_values = data['lift'][-num_iterations:] if len(data['lift']) >= num_iterations else data['lift']
             drag_values = data['drag'][-num_iterations:] if len(data['drag']) >= num_iterations else data['drag']
 
-        lift_arr = np.array(lift_values, dtype=float)
         drag_arr = np.array(drag_values, dtype=float)
 
         drag_mean = float(np.mean(drag_arr)) if drag_arr.size else None
@@ -2148,7 +2125,7 @@ def create_version_comparison_sheet(
             'drag_cov': drag_cov,
             'cl': c_l,
             'cd': c_d,
-            'count': int(lift_arr.size) if lift_arr.size else 0,
+            'count': int(drag_arr.size) if drag_arr.size else 0,
         }
         return metrics_cache[key]
 
@@ -2157,11 +2134,7 @@ def create_version_comparison_sheet(
 
     columns = [
         'velocity',
-        'Lift A (N)',
-        'Lift B (N)',
-        'ΔLift (N)',
-        'ΔLift (%)',
-        'Drag A (N)',
+                                        'Drag A (N)',
         'Drag B (N)',
         'ΔDrag (N)',
         'ΔDrag (%)',
@@ -2236,10 +2209,6 @@ def create_version_comparison_sheet(
 
                 row_values = [
                     extract_velocity_number(velocity),
-                    fmt(lift_a, 3),
-                    fmt(lift_b, 3),
-                    fmt_delta(lift_a, lift_b, 3),
-                    fmt_delta(lift_a, lift_b, 2, percent=True),
                     fmt(drag_a, 3),
                     fmt(drag_b, 3),
                     fmt_delta(drag_a, drag_b, 3),
@@ -2355,16 +2324,13 @@ def _create_auto_version_comparison_sheet(wb, all_data, num_iterations, converge
              key = (data['config_key'], data['velocity']) # We stored this in the loop below
              if key in convergence_results:
                  conv = convergence_results[key]
-                 lift_idx = np.argmin(conv['lift']['cov'])
                  drag_idx = np.argmin(conv['drag']['cov'])
-                 optimal_trim = max(conv['lift']['iterations_removed'][lift_idx], conv['drag']['iterations_removed'][drag_idx])
-                 lift = data['data']['lift'][optimal_trim:]
+                 optimal_trim = conv['drag']['iterations_removed'][drag_idx]
                  drag = data['data']['drag'][optimal_trim:]
-                 return np.mean(lift) if lift else 0, np.mean(drag) if drag else 0
+                 return 0, np.mean(drag) if len(drag) > 0 else 0
 
-        lift = data['data']['lift'][-num_iterations:] if len(data['data']['lift']) >= num_iterations else data['data']['lift']
         drag = data['data']['drag'][-num_iterations:] if len(data['data']['drag']) >= num_iterations else data['data']['drag']
-        return np.mean(lift) if lift else 0, np.mean(drag) if drag else 0
+        return 0, np.mean(drag) if len(drag) > 0 else 0
 
     current_row = 1
     
@@ -2388,19 +2354,17 @@ def _create_auto_version_comparison_sheet(wb, all_data, num_iterations, converge
         # Table Header
         ws.cell(row=current_row, column=1, value=f"{family} - Version Comparison").font = table_title_font
         ws.cell(row=current_row, column=1).fill = table_title_fill
-        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=1 + len(sorted_versions)*2) # *2 for Lift/Drag
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=1 + len(sorted_versions))
         current_row += 1
         
         # Column Headers
-        ws.cell(row=current_row, column=1, value="velocity").font = header_font
+        ws.cell(row=current_row, column=1, value="Mach Number").font = header_font
         ws.cell(row=current_row, column=1).fill = header_fill
         
         for i, ver in enumerate(sorted_versions):
-            col_start = 2 + i*2
-            ws.cell(row=current_row, column=col_start, value=f"v{ver} Lift").font = header_font
+            col_start = 2 + i
+            ws.cell(row=current_row, column=col_start, value=f"v{ver} Drag").font = header_font
             ws.cell(row=current_row, column=col_start).fill = header_fill
-            ws.cell(row=current_row, column=col_start+1, value=f"v{ver} Drag").font = header_font
-            ws.cell(row=current_row, column=col_start+1).fill = header_fill
         current_row += 1
         
         # Data Rows
@@ -2450,7 +2414,7 @@ def create_coefficients_sheet(wb, all_data, num_iterations, convergence_results,
     row_fill_white = PatternFill(start_color='FFFFFF', end_color='FFFFFF', fill_type='solid')
     
     # Headers
-    columns = ['Configuration', 'Turbulence Model', 'Velocity', 'C_D', 'C_D COV (%)']
+    columns = ['Configuration', 'Turbulence Model', 'Mach Number', 'C_D', 'C_D COV (%)']
     for col_idx, col_name in enumerate(columns, 1):
         cell = ws.cell(row=1, column=col_idx, value=col_name)
         cell.font = header_font
@@ -2469,14 +2433,11 @@ def create_coefficients_sheet(wb, all_data, num_iterations, convergence_results,
         # Get optimized or fixed iteration data
         if convergence_results and (config, velocity) in convergence_results:
             conv = convergence_results[(config, velocity)]
-            # lift_min_cov_idx = np.argmin(conv['lift']['cov'])
             drag_min_cov_idx = np.argmin(conv['drag']['cov'])
             
-            # optimal_lift_trim
             optimal_drag_trim = conv['drag']['iterations_removed'][drag_min_cov_idx]
             optimal_trim = optimal_drag_trim
             
-            lift_values = data['lift'][optimal_trim:]
             drag_values = data['drag'][optimal_trim:]
         else:
             drag_values = data['drag'][-num_iterations:] if len(data['drag']) >= num_iterations else data['drag']
@@ -2543,7 +2504,7 @@ def create_optimized_statistics_sheet(wb, all_data, convergence_results, num_ite
     row_fill_white = PatternFill(start_color='FFFFFF', end_color='FFFFFF', fill_type='solid')
     
     # Headers
-    columns = ['Turbulence Model', 'Configuration', 'velocity', 'Original Iterations', 'Optimal Trim', 'Optimized Iterations',
+    columns = ['Turbulence Model', 'Configuration', 'Mach Number', 'Original Iterations', 'Optimal Trim', 'Optimized Iterations',
                'Drag Mean (Orig)', 'Drag Mean (Opt)', 'Drag COV (Orig)', 'Drag COV (Opt)', 'Drag COV Δ']
     
     for col_idx, col_name in enumerate(columns, 1):
@@ -2570,25 +2531,20 @@ def create_optimized_statistics_sheet(wb, all_data, convergence_results, num_ite
         conv = convergence_results[(config, velocity)]
         
         # Original stats (last num_iterations)
-        orig_lift = data['lift'][-num_iterations:] if len(data['lift']) >= num_iterations else data['lift']
         orig_drag = data['drag'][-num_iterations:] if len(data['drag']) >= num_iterations else data['drag']
         orig_drag_mean, orig_drag_cov = compute_statistics(orig_drag)
         
         # Optimized stats
-        lift_min_idx = np.argmin(conv['lift']['cov'])
         drag_min_idx = np.argmin(conv['drag']['cov'])
-        optimal_lift_trim = conv['lift']['iterations_removed'][lift_min_idx]
-        optimal_drag_trim = conv['drag']['iterations_removed'][drag_min_idx]
-        optimal_trim = optimal_drag_trim
+        optimal_trim = conv['drag']['iterations_removed'][drag_min_idx]
         
-        opt_lift = data['lift'][optimal_trim:]
         opt_drag = data['drag'][optimal_trim:]
         opt_drag_mean, opt_drag_cov = compute_statistics(opt_drag)
         
         fill = row_fill_light if row % 2 == 0 else row_fill_white
         values = [
             data['turbulence_model'], config, extract_velocity_number(velocity),
-            len(orig_lift), optimal_trim, len(opt_lift),
+            len(orig_drag), optimal_trim, len(opt_drag),
             f"{orig_drag_mean:.3f}", f"{opt_drag_mean:.3f}",
             f"{orig_drag_cov:.2f}%", f"{opt_drag_cov:.2f}%", f"{(orig_drag_cov - opt_drag_cov):+.2f}%"
         ]
@@ -3344,21 +3300,21 @@ def _plot_standard_aerodynamics(plot_items, output_dir, title_prefix, max_cov_th
         return f"{clean_prefix}_{suffix}.png"
 
     # 1. C_L vs velocity
-    _plot_multi_series(plot_items, 'C_L', f'{title_prefix} - Lift Coefficient', 
-                      'Lift Coefficient ($C_L$)', output_dir / make_name("Lift_Coefficient"), max_cov_threshold, reference_data=reference_data)
+    # _plot_multi_series(plot_items, 'C_L', f'{title_prefix} - Lift Coefficient', 
+                      # 'Lift Coefficient ($C_L$)', output_dir / make_name("Lift_Coefficient"), max_cov_threshold, reference_data=reference_data)
     # 2. C_D vs velocity
     _plot_multi_series(plot_items, 'C_D', f'{title_prefix} - Drag Coefficient', 
                       'Drag Coefficient ($C_D$)', output_dir / make_name("Drag_Coefficient"), max_cov_threshold, reference_data=reference_data)
     # 3. Drag Polar (C_L vs C_D)
-    _plot_multi_series(plot_items, 'C_L', f'{title_prefix} - Drag Polar', 
-                      'Lift Coefficient ($C_L$)', output_dir / make_name("Drag_Polar"), max_cov_threshold,
-                      x_key='C_D', xlabel='Drag Coefficient ($C_D$)', reference_data=reference_data)
+    # _plot_multi_series(plot_items, 'C_L', f'{title_prefix} - Drag Polar', 
+    #                   'Lift Coefficient ($C_L$)', output_dir / make_name("Drag_Polar"), max_cov_threshold,
+    #                   x_key='C_D', xlabel='Drag Coefficient ($C_D$)', reference_data=reference_data)
     # 4. CL/CD vs velocity
-    _plot_multi_series(plot_items, 'CL_CD', f'{title_prefix} - Lift-to-Drag Ratio', 
-                      'Lift-to-Drag Ratio ($C_L/C_D$)', output_dir / make_name("Lift_to_Drag_Ratio"), max_cov_threshold, reference_data=reference_data)
+    # _plot_multi_series(plot_items, 'CL_CD', f'{title_prefix} - Lift-to-Drag Ratio', 
+                      # 'Lift-to-Drag Ratio ($C_L/C_D$)', output_dir / make_name("Lift_to_Drag_Ratio"), max_cov_threshold, reference_data=reference_data)
     # 5. Endurance vs velocity
-    _plot_multi_series(plot_items, 'Endurance', f'{title_prefix} - Endurance Factor', 
-                      'Endurance Factor ($C_L^{1.5} / C_D$)', output_dir / make_name("Endurance_Factor"), max_cov_threshold, reference_data=reference_data)
+    # _plot_multi_series(plot_items, 'Endurance', f'{title_prefix} - Endurance Factor', 
+    #                   'Endurance Factor ($C_L^{1.5} / C_D$)', output_dir / make_name("Endurance_Factor"), max_cov_threshold, reference_data=reference_data)
     
     # 6. Combined CL/CD (Dual Axis)
     # Note: _plot_dual_axis_cl_cd generates its own filename currently. We should probably update it too or leave it consistent.
@@ -3366,7 +3322,7 @@ def _plot_standard_aerodynamics(plot_items, output_dir, title_prefix, max_cov_th
     # but for now let's pass a specific output path if possible? The function doesn't take filename arg.
     # Let's rename the function to accept filename or handle it internally.
     # For now, let's just stick to the main ones.
-    _plot_dual_axis_cl_cd(plot_items, output_dir, title_prefix, max_cov_threshold, reference_data=reference_data)
+
     
     # 7. Aerodynamic Summary (Quad Plot)
     _plot_quad_aerodynamics(plot_items, output_dir, title_prefix, max_cov_threshold, reference_data=reference_data)
@@ -3476,11 +3432,7 @@ def create_grid_graphs(coefficient_data, output_dir, comparison_mode='grid', max
             
         # 3. Plot (per-family)
         grid_dir.mkdir(parents=True, exist_ok=True)
-        _plot_multi_series(plot_items, 'Ratio', 
-                           f'{family} - Efficiency Improvement', 
-                           'Efficiency Ratio ($(C_L/C_D)_G / (C_L/C_D)_{NG}$)',
-                           grid_dir / "Efficiency_Ratio_vs_velocity.png",
-                           max_cov_threshold=max_cov_threshold)
+
 
     # 4. Combined overlay for family_grid mode
     if comparison_mode == 'family_grid' and len(pair_data) > 1:
@@ -3562,13 +3514,7 @@ def create_grid_graphs(coefficient_data, output_dir, comparison_mode='grid', max
         if combined_items:
             combined_dir = output_dir / "coefficient_graphs" / "Grid_Graphs" / "Combined"
             combined_dir.mkdir(parents=True, exist_ok=True)
-            _plot_multi_series(
-                combined_items, 'Ratio',
-                'All Families — Efficiency Improvement',
-                'Efficiency Ratio ($(C_L/C_D)_G / (C_L/C_D)_{NG}$)',
-                combined_dir / "Combined_Efficiency_Ratio_vs_velocity.png",
-                max_cov_threshold=max_cov_threshold
-            )
+
 
 
 def _plot_coefficient_vs_velocity(velocity_vals, coeff_vals, std_vals, style, turb_name, config, ylabel, title, output_path):

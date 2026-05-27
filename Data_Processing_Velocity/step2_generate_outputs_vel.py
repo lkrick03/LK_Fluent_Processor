@@ -32,9 +32,8 @@ from mvel_config import (
 
 # ==================== CONFIGURATION (MIRRORS main_vel.py) ====================
 
-ACTIVE_PRESET = "single_1.1.1.2.G"
+ACTIVE_PRESET = "O_version_comp_1.2.1.6-7.NG"
 PLOT_REFERENCE_DATA = False
-PROCESS_PATHLINES = False
 PRESENTATION_MODE = False
 GRAPH_MAX_COV = 15
 
@@ -42,7 +41,7 @@ GRAPH_MAX_COV = 15
 Diameter = .15494 #meters
 AIR_DENSITY = 1.225
 VISCOSITY = 1.7894e-5
-REFERENCE_AREA = (np.pi * (Diameter/2)**2)
+REFERENCE_AREA = (np.pi * (Diameter/2)**2) / 2 #The simulation is cut in half
 
 # Reference Data Definition...
 REFERENCE_DATA = [
@@ -121,14 +120,14 @@ def main(config=None):
     if _COMPARISON_MODE != 'single':
         create_turbulence_comparison_sheet(wb, all_data, _NUM_ITERATIONS, convergence_results, comparison_mode=_COMPARISON_MODE)
         
-    create_coefficients_sheet(wb, all_data, _NUM_ITERATIONS, convergence_results, _Q_TIMES_A)
+    create_coefficients_sheet(wb, all_data, _NUM_ITERATIONS, convergence_results, REFERENCE_AREA)
     
     version_sheet_created = False
     if _COMPARISON_MODE == 'version':
-        version_sheet_created = create_version_comparison_sheet(wb, all_data, COMPARISON_CONFIGS, _NUM_ITERATIONS, convergence_results, _Q_TIMES_A, comparison_mode=_COMPARISON_MODE)
+        version_sheet_created = create_version_comparison_sheet(wb, all_data, COMPARISON_CONFIGS, _NUM_ITERATIONS, convergence_results, REFERENCE_AREA, comparison_mode=_COMPARISON_MODE)
 
     if convergence_results:
-        create_optimized_statistics_sheet(wb, all_data, convergence_results, _NUM_ITERATIONS, _Q_TIMES_A)
+        create_optimized_statistics_sheet(wb, all_data, convergence_results, _NUM_ITERATIONS, REFERENCE_AREA)
     
     wb.save(excel_file)
     print(f"[OK] Excel Base Saved: {excel_file}")

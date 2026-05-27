@@ -3,6 +3,11 @@ ANSYS Journal File Exporter (Mach Sweep)
 ========================================
 Generate and export ANSYS Fluent journal files (.jou) for Mach sweep simulations.
 
+* NOTE: This script has been merged with `jou_post_exporter.py`! 
+* It now natively handles solving AND post-processing. You DO NOT 
+* need to run a secondary post-exporter script. It automatically 
+* generates .xy and pathline data arrays straight into the Mach folders.
+
 Usage:
     1. Configure the settings in the CONFIGURATION section below
     2. Run the script: python vel_jou_export.py
@@ -19,16 +24,16 @@ from datetime import datetime
 # ============================================================
 
 # OUTPUT SETTINGS
-export_filename = "1.2.1.2.NG_0.1_1.2" # Filename (no .jou needed)
-export_directory = r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\Setup_Jou\HPC\1.2.1.2.NG_setup"
+export_filename = "1.2.1.7  .NG_0.05_0.8" # Filename (no .jou needed)
+export_directory = r"C:\Users\lukek\OneDrive\Documents\Rocketry_ANSYS\OMEGA\Fluent\Setup_Jou\HPC\1.2.1.7.NG_setup"
 
 # --- 1. Mach Settings ---
 MACH_MODE = "List"  # Options: "Range", "List", "MultiRange"
 
 # If "Range":
-MACH_START = 0.5 
-MACH_END = 2.0
-MACH_STEP = 0.5
+MACH_START = 0.05 
+MACH_END = 0.8
+MACH_STEP = 0.05
 
 # If "MultiRange":
 # List of tuples: (start, end, step)
@@ -38,7 +43,7 @@ MACH_RANGES = [
 ]
 
 # If "List":
-MACH_LIST = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2]
+MACH_LIST = [0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8]
 
 # --- 2. Simulation Parameters ---
 X_FLOW_DIR = 0.0       # X-Component of Flow Direction
@@ -48,10 +53,10 @@ GAUGE_PRESSURE = 98900  # Gauge Pressure (Pa)
 TEMPERATURE = 300       # Temperature (K)
 TURB_INTENSITY = 5      # Turbulent Intensity (%)
 TURB_VISCOSITY = 10     # Turbulent Viscosity Ratio
-BASE_OUTPUT_DIR = "/home/ljcrick/directories/OMEGA/1.2.1.2.NG" 
-OUTPUT_FILENAME_BASE = "1.2.1.2.NG"  # Base name for output files
+BASE_OUTPUT_DIR = "/home/ljcrick/directories/OMEGA/1.2.1.7.NG" 
+OUTPUT_FILENAME_BASE = "1.2.1.7.NG"  # Base name for output files
 DRAG_REPORT_FILE = "report-file-0" #make sure the report definiton has an output file and is named accordingly
-ITERATIONS = 1200  # Number of iterations to run
+ITERATIONS = 2400  # Number of iterations to run
 TEST_MODE = False   # If True: Updates BCs but skips Solving & Saving
 
 # --- 3. Define Zone Groups ---
@@ -80,6 +85,20 @@ ZONE_RULES = [
     # }
 ]
 
+# --- 5. Post-Processing Settings ---
+# Rocket Wall Surfaces
+ROCKET_SURFACES = ["fin_wall", "rocketbody_wall"]
+
+# Format: { "fluent-variable-name": "output-label" }
+EXPORT_VARIABLES = {
+    "pressure-coefficient": "Cp",
+    "yplus": "Yplus",
+    "skin-friction-coef": "Skin_Friction",
+}
+PLOT_DIRECTION = "1 0 0"
+
+EXPORT_RESIDUALS = True
+
 # TUI Command Strings
 # NOTE: The ~a wildcards will be replaced by: Mach Number, X-Dir, Y-Dir, Z-Dir
 # The sequence answers:
@@ -103,6 +122,44 @@ def format_scheme_list(py_list):
     quoted_items = [f'"{item}"' for item in py_list]
     return f"'({' '.join(quoted_items)})"
 
+
+def get_rocket_surfaces():
+    return ROCKET_SURFACES
+
+def _build_residual_scheme_for_velocity(res_file, mach):
+    names_list = (
+        '"continuity" "x-velocity" "y-velocity" "z-velocity" '
+        '"energy" "k" "omega" "epsilon" "nut"'
+    )
+
+    scheme = f"""; --- Residual Export (Scheme) for Mach = {mach} ---
+(display "  Exporting residuals for Mach = {mach}...\\n")
+(let ((port (open-output-file "{res_file}"))
+      (iters (residual-history "iteration"))
+      (names '())
+      (datas '()))
+  (for-each
+    (lambda (name)
+      (let ((d (residual-history name)))
+        (if (and (pair? d) (> (length d) 0))
+          (begin
+            (set! names (append names (list name)))
+            (set! datas (append datas (list d)))))))
+    (list {names_list}))
+  (display "iteration" port)
+  (for-each (lambda (nm) (display "\\t" port) (display nm port)) names)
+  (newline port)
+  (let ((n (length iters)))
+    (do ((i 0 (+ i 1)))
+        ((>= i n))
+      (display (list-ref iters i) port)
+      (for-each (lambda (d) (display "\\t" port) (display (list-ref d i) port)) datas)
+      (newline port)))
+  (close-output-port port)
+  (display (format #f "    Wrote ~a iterations x ~a residuals to file\\n" (length iters) (length names))))
+
+"""
+    return scheme
 
 def generate_journal_content():
     """Generate the ANSYS Fluent journal file content."""
@@ -143,6 +200,10 @@ def generate_journal_content():
 ; Create base directory
 (ensure-directory base-output-dir)
 """
+
+    # Prepare post-processing constants
+    surfaces = get_rocket_surfaces()
+    surface_tui_string = " ".join(surfaces)
 
     # Iterate through each Mach number
     for mach in mach_values:
@@ -247,6 +308,28 @@ def generate_journal_content():
 (define case-data-name (format #f "{OUTPUT_FILENAME_BASE}.~a.cas.h5" mach-number))
 {save_block}
 """
+
+        # --- POST PROCESSING ---
+        if not TEST_MODE:
+            post_block = f"""
+; Ensure post-process dir exists
+(ensure-directory (format #f "~a/y_plus_pressure_data" current-mach-dir))
+"""
+            for var_name, label in EXPORT_VARIABLES.items():
+                output_file = f"{BASE_OUTPUT_DIR}/Mach_{mach}/y_plus_pressure_data/{OUTPUT_FILENAME_BASE}.{mach}.{label}.xy"
+                output_file = output_file.replace("\\", "/")
+                
+                post_block += f"""; Export {label}
+(display "  Exporting {label} for Mach = {mach}...\\n")
+(ti-menu-load-string (format #f "/plot/plot yes \\"{output_file}\\" no no no {var_name} yes {PLOT_DIRECTION} {surface_tui_string} ()"))
+
+"""
+            if EXPORT_RESIDUALS:
+                res_file = f"{BASE_OUTPUT_DIR}/Mach_{mach}/y_plus_pressure_data/{OUTPUT_FILENAME_BASE}.{mach}.residuals.csv"
+                res_file = res_file.replace("\\", "/")
+                post_block += _build_residual_scheme_for_velocity(res_file, mach)
+                
+            journal_content += post_block
 
     journal_content += '\n(display "~%=== Mach sweep completed successfully ===~%")\n'
     

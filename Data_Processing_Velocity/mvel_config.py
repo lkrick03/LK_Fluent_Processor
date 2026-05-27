@@ -31,7 +31,7 @@ NAMING_SCHEMAS = {
 ACTIVE_SCHEMA = '5-part'  # Change to '5-part' for configs like 4.3.1.3.NG
 
 # Specify whether Drag should be inverted (multiply by -1)
-INVERT_DRAG_SIGN = True
+INVERT_DRAG_SIGN = False    
 
 # Legacy alias for backward compatibility
 POSITION_MAP = NAMING_SCHEMAS[ACTIVE_SCHEMA]
@@ -64,8 +64,8 @@ VALUE_MAPPINGS = {
         3: 'V3',
         4: 'V4',
         5: 'V5',
-        6: 'V6',
-        7: 'V7',
+        6: 'Single_Precision',
+        7: 'Double_Precision',
     },
     'grid': {
         'NG': 'No Brake',
@@ -105,9 +105,14 @@ DATA_MANIPULATIONS = [
 # Preset Registry
 # Define custom runs with predefined data sources, output directory, and comparison modes.
 # Set ACTIVE_PRESET in main.py to the key of the preset you want to run, or None to use manual settings.
+#
+# For SINGLE-mode presets: use "data_sources" to point at raw unprocessed_data directories.
+# For COMPARISON-mode presets: use "processed_sources" to point at pipeline_state.pkl files
+#   from already-processed single runs. This avoids reprocessing raw data — Step 1 will
+#   merge the existing .pkl files and Step 2 generates comparison outputs from the merge.
 
 RUN_PRESETS = {
-    "single_1.1.1.2.G": {
+    "T_single_1.1.1.2.G": {
         "name": "1.1.1.2.G Single Run (Velocity)",
         "data_sources": [
             r"C:\Users\lukek\Documents\Rocketry_CFD\TRINITY\directories\unprocessed_data\1.1.1.2.G",
@@ -115,5 +120,93 @@ RUN_PRESETS = {
         "output_dir": Path(r"C:\Users\lukek\Documents\Rocketry_CFD\TRINITY\directories\processed_data\1.1.1.2.G"),
         "comparison_mode": "single",
         "velocity_filter": []  # SWAPPED from aoa_filter
-    }
+    },
+    "O_single_1.2.1.2.NG": {
+        "name": "1.2.1.2.NG Single Run (Velocity)",
+        "data_sources": [
+            r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\unprocessed_data\1.2.1.2.NG",
+        ],
+        "output_dir": Path(r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\1.2.1.2.NG"),
+        "comparison_mode": "single",
+        "velocity_filter": []  # SWAPPED from aoa_filter
+    },
+    "O_single_1.2.1.2.G": { #This needs to be adjusted
+        "name": "1.2.1.2.G Single Run (Velocity)",
+        "data_sources": [
+            r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\Setup_Jou\HPC\1.2.1.2.NG_setup",
+        ],
+        "output_dir": Path(r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\Setup_Jou\HPC\1.2.1.2.NG_setup"),
+        "comparison_mode": "single",
+        "velocity_filter": []  # SWAPPED from aoa_filter
+    },
+    "O_single_1.2.1.6.NG": {
+        "name": "1.2.1.6.NG Single Run (Velocity)",
+        "data_sources": [
+            r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\unprocessed_data\1.2.1.6.NG",
+        ],
+        "output_dir": Path(r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\1.2.1.6.NG"),
+        "comparison_mode": "single",
+        "velocity_filter": []  # SWAPPED from aoa_filter
+    },
+    "O_single_1.2.1.7.NG": {
+        "name": "1.2.1.7.NG Single Run (Velocity)",
+        "data_sources": [
+            r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\unprocessed_data\1.2.1.7.NG",
+        ],
+        "output_dir": Path(r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\1.2.1.7.NG"),
+        "comparison_mode": "single",
+        "velocity_filter": []  # SWAPPED from aoa_filter
+    },
+    "O_single_1.2.1.8.NG": {
+        "name": "1.2.1.8.NG Single Run (Velocity)",
+        "data_sources": [
+            r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\unprocessed_data\1.2.1.8.NG",
+        ],
+        "output_dir": Path(r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\1.2.1.8.NG"),
+        "comparison_mode": "single",
+        "velocity_filter": []  # SWAPPED from aoa_filter
+    },
+
+    # ---- SINGLE PRESET TEMPLATE ----
+    # Uncomment and adjust. Replace <ROCKET> with project name (e.g. OMEGA),
+    # and <CONFIG> with the config string (e.g. 1.2.1.8.NG).
+    #
+    # "<ROCKET>_single_<CONFIG>": {
+    #     "name": "<CONFIG> Single Run (Velocity)",
+    #     "data_sources": [
+    #         r"C:\Users\lukek\Documents\Rocketry_CFD\<ROCKET>\directories\unprocessed_data\<CONFIG>",
+    #     ],
+    #     "output_dir": Path(r"C:\Users\lukek\Documents\Rocketry_CFD\<ROCKET>\directories\processed_data\<CONFIG>"),
+    #     "comparison_mode": "single",
+    #     "velocity_filter": []
+    # },
+
+    # ---- COMPARISON PRESETS (merge from processed .pkl files) ----
+
+
+    "O_version_comp_1.2.1.6-7.NG": {
+        "name": "1.2.1.6-7.NG Version Comparison (Velocity)",
+        "processed_sources": [
+            Path(r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\1.2.1.6.NG\pipeline_state.pkl"),
+            Path(r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\1.2.1.7.NG\pipeline_state.pkl"),
+        ],
+        "output_dir": Path(r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\1.2.1.6-7.NG"),
+        "comparison_mode": "version",
+        "velocity_filter": []  # SWAPPED from aoa_filter
+    },
+
+    # ---- COMPARISON PRESET TEMPLATE ----
+    # Uncomment and adjust paths to use.
+    #
+    # "compare_grid_1.2.1.2": {
+    #     "name": "Grid Comparison: 1.2.1.2 NG vs G",
+    #     "processed_sources": [
+    #         Path(r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\1.2.1.2.NG\pipeline_state.pkl"),
+    #         Path(r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\1.2.1.2.G\pipeline_state.pkl"),
+    #     ],
+    #     "output_dir": Path(r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\Comparisons\1.2.1.2_Grid"),
+    #     "comparison_mode": "grid",
+    #     "velocity_filter": []
+    # },
 }
+

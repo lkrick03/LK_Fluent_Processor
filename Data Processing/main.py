@@ -35,7 +35,7 @@ from config import (
 
 # Set ACTIVE_PRESET to the key of the preset you want to run, 
 # or None to use manual settings below.
-ACTIVE_PRESET = "single_4.3.1.G"
+ACTIVE_PRESET = "single_4.3.2.NG"
 
 if ACTIVE_PRESET and ACTIVE_PRESET in RUN_PRESETS:
     preset = RUN_PRESETS[ACTIVE_PRESET]
@@ -235,6 +235,19 @@ def main(config=None):
         
         all_data = filtered_data
         print(f"   -> Filtered down to {len(all_data)} simulations (removed {initial_count - len(all_data)})")
+        
+        # Apply the exact same filter to REFERENCE_DATA
+        if _REFERENCE_DATA:
+            for ref in _REFERENCE_DATA:
+                filtered_ref_aoa, filtered_ref_cl, filtered_ref_cd = [], [], []
+                for a, cl, cd in zip(ref['aoa'], ref['C_L'], ref['C_D']):
+                    if a in _AOA_FILTER:
+                        filtered_ref_aoa.append(a)
+                        filtered_ref_cl.append(cl)
+                        filtered_ref_cd.append(cd)
+                ref['aoa'] = filtered_ref_aoa
+                ref['C_L'] = filtered_ref_cl
+                ref['C_D'] = filtered_ref_cd
     
     # Print validation report
     print("\n" + "-" * 100)

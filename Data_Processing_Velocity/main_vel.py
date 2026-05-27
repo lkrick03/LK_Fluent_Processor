@@ -12,7 +12,7 @@ from step1_process_vel import main as run_step1
 from step2_generate_outputs_vel import main as run_step2
 from mvel_config import RUN_PRESETS
 
-ACTIVE_PRESET = "single_1.1.1.2.G"
+ACTIVE_PRESET = "single_1.2.1.2.NG"
 
 def main():
     print("=" * 100)

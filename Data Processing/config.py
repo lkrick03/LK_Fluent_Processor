@@ -112,8 +112,18 @@ RUN_PRESETS = {
         "output_dir": Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.4\4.3\4.3.1\4.3.1.G"),
         "comparison_mode": "single",
         "aoa_filter": []
+    },
+
+    "single_4.3.2.NG": {
+        "name": "4.3.2.NG Single Run",
+        "data_sources": [
+            Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.1.NG"),
+        ],
+        "output_dir": Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.4\4.3\4.3.2\4.3.2.1.NG"),
+        "comparison_mode": "single",
+        "aoa_filter": []
     }
-    #"turbulence_4.3": {
+        #"turbulence_4.3": {
         #"name": "4.3 Turbulence Comparison",
         #"data_sources": [
             #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.NG"),
