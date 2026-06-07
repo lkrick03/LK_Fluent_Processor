@@ -3,7 +3,7 @@
 ; Reopens saved AoA cases, exports lift/drag data and contour plots
 ; ============================================================
 
-(define base-output-dir "C:/Users/lukek/OneDrive/Documents/Thesis/NACA_2414_2D/Fleunt/Data/Trial")
+(define base-output-dir "C:/Users/<YOUR_USERNAME>/Documents/Thesis/NACA_2414_2D/Fluent/Data/Trial")
 
 ; --- List of AoAs to process ---
 (define aoa-list '(0 5))

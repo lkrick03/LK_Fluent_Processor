@@ -7,8 +7,8 @@ and exports high-resolution contour plots without Fluent's TUI.
 
 Usage:
     Run this script using ParaView's python engine (pvpython), NOT standard python.
-    "C:\Users\lukek\Downloads\ParaView-6.1.0-RC1-Windows-Python3.12-msvc2017-AMD64\ParaView-6.1.0-RC1-Windows-Python3.12-msvc2017-AMD64\bin\pvpython.exe" vel_paraview_exporter.py
-    & "C:\Users\lukek\Downloads\ParaView-6.1.0-RC1-Windows-Python3.12-msvc2017-AMD64\ParaView-6.1.0-RC1-Windows-Python3.12-msvc2017-AMD64\bin\pvpython.exe" "C:\Users\lukek\OneDrive - Liberty University\Group-F.L.U.I.D. Research - GRID-FINS - GRID-FINS\Python\Data_Processing_Velocity\vel_paraview_exporter.py"
+    "C:\\Program Files\\ParaView 6.1.0\\bin\\pvpython.exe" vel_paraview_exporter.py
+    & "C:\\Program Files\\ParaView 6.1.0\\bin\\pvpython.exe" "vel_paraview_exporter.py"
     
     This is to be run after post prcoessing is done, take the individuall families and run them
 """
@@ -32,7 +32,7 @@ except ImportError:
 # List of parent directories containing the Mach_* folders.
 # Each entry is processed in order with its matching CONFIG_NAME and IMAGE_OUTPUT_DIR. Singular, should not be taking multipile families
 BASE_CASE_DIRS = [
-    r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\unprocessed_data\1.2.1.2.NG",
+    # r"C:\path\to\your\data\1.2.1.2.NG",
 ]
 
 # Configuration names (must match the order/length of BASE_CASE_DIRS)
@@ -42,7 +42,7 @@ CONFIG_NAMES = [
 
 # Where to save the high-res PNG contour images (must match the order/length of BASE_CASE_DIRS)
 IMAGE_OUTPUT_DIRS = [   
-    r"C:\Users\lukek\Documents\Rocketry_CFD\OMEGA\directories\processed_data\1.2.1.2.NG\Countour_Plots\ParaView",
+    # r"C:\path\to\your\output\1.2.1.2.NG\Countour_Plots\ParaView",
 ]
 
 # List of Mach values to process. Leave empty [] to auto-discover all Mach folders

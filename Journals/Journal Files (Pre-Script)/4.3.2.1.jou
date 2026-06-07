@@ -4,7 +4,7 @@
 ; Turbulence: Intensity = 5%, Length Scale = 10
 ; ============================================================
 
-(define base-output-dir "C:/Users/lukek/OneDrive/Documents/Thesis/NACA_2414_2D/Fleunt/Directories/2414_006_004.3/4.3.2.1/Case_and_Data/WO_Flaps")
+(define base-output-dir "C:/Users/<YOUR_USERNAME>/Documents/Thesis/NACA_2414_2D/Fluent/Directories/2414_006_004.3/4.3.2.1/Case_and_Data/WO_Flaps")
 
 ; ---- Parameters ----
 (define V_mag 24.38)

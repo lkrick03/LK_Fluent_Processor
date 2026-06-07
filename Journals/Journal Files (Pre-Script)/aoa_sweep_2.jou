@@ -3,7 +3,7 @@
 
 ; ===== OUTPUT DIRECTORY =====
 ; Set your main output directory here (use forward slashes even on Windows)
-(define base-output-dir "C:/Users/lukek/OneDrive/Documents/Thesis/NACA_2414_2D/Fleunt/Data/Trial")
+(define base-output-dir "C:/Users/<YOUR_USERNAME>/Documents/Thesis/NACA_2414_2D/Fluent/Data/Trial")
 ; Example Windows: "C:/Users/YourName/Documents/Fluent_Results"
 ; Example Linux: "/home/username/fluent_results"
 

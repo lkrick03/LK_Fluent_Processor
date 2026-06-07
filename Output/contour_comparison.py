@@ -28,26 +28,12 @@ from PIL import Image, ImageDraw, ImageFont
 # Each side can have multiple directories (different versions).
 # 'Highest Version Wins' deduplication is applied per side.
 BASE_DIRS_A = [
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.1.NG\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.2.NG\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.3.NG\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.4.NG\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.5.NG\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.6.NG\Countour_Plots\ParaView",
-    #r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.7.NG\Countour_Plots\ParaView",
-    #r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.8.NG\Countour_Plots\ParaView",
+    # r"C:\path\to\your\data\5.6.1.1.NG\Countour_Plots\ParaView",
 ]
 CONFIG_NAMES_A = []  # Leave empty to auto-extract from directory paths
 
 BASE_DIRS_B = [
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.1.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.2.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.3.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.4.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.5.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.6.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.7.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.8.G\Countour_Plots\ParaView",
+    # r"C:\path\to\your\data\5.6.1.1.G\Countour_Plots\ParaView",
 ]
 CONFIG_NAMES_B = []  # Leave empty to auto-extract from directory paths
 
@@ -58,7 +44,7 @@ NAME_A = "5.6.1.NG"
 NAME_B = "5.6.1.G"
 
 # --- 3. Output ---
-OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Contour_Exports\Contour_Comparisons\5.6.1.NG_vs_5.6.1.G_12_20"
+OUTPUT_DIR = r"."  # Update to your desired output directory
 
 # --- 4. AoA Selection ---
 # Provide a list of AoA values to compare.

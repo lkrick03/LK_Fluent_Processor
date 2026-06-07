@@ -27,12 +27,7 @@ from PIL import Image
 # When multiple directories share the same identity (velocity.mesh.turbulence.grid)
 # but differ in version, only the highest version's frames are used per Velocity.
 IMAGE_OUTPUT_DIRS = [
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.1.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.3.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.5.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.6.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.7.G\Countour_Plots\ParaView",
-    r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.8.G\Countour_Plots\ParaView",
+    # r"C:\path\to\your\data\5.6.1.1.G\Countour_Plots\ParaView",
 ]
 
 # Configuration names (must match the order/length of IMAGE_OUTPUT_DIRS)
@@ -49,7 +44,7 @@ CONFIG_NAMES = [
 VELOCITY_LIST = []
 
 # Where to save the GIFs
-GIF_OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Contour_Exports\GIFS\5.6\5.6.1.G"
+GIF_OUTPUT_DIR = r"."  # Update to your desired output directory
 
 # Time to show each frame in milliseconds (e.g., 500 = 0.5 seconds per Velocity)
 FRAME_DURATION = 250

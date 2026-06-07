@@ -20,11 +20,11 @@ from datetime import datetime
 
 # OUTPUT SETTINGS — where the .jou file itself is saved
 export_filename = "post_process_contours_5.6.1.1.NG"          # Filename (no .jou needed)
-export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.1.NG"
+export_directory = r"."  # Update to your local export directory
 
 # --- 1. Base Locations & Naming ---
 # The parent directory containing the AoA_* folders for this specific config
-BASE_CASE_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.1.NG"
+BASE_CASE_DIR = r"."  # Update to your local base case directory
 
 # Configuration name (matches your file naming convention, e.g. "4.6.1.1.NG")
 CONFIG_NAME = "5.6.1.1.NG"
@@ -36,11 +36,11 @@ AOA_LIST = [5,10]
 # --- 2. Input/Output Paths ---
 # Set to None to save images alongside each case file
 # Or set a path to collect all exports in one place
-IMAGE_OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.5\5.6.1.1.NG\Countour_Plots"
+IMAGE_OUTPUT_DIR = r"."  # Update to your local output directory
 
 # Path to the saved Fluent Camera View file (.vw) used for exact image framing
 # Ensure this file exists and contains the layouts referenced in Custom Views
-CAMERA_VIEW_FILE = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Views\Views_5.vw"
+CAMERA_VIEW_FILE = r"."  # Update to your Fluent Camera View file
 
 # --- 3. Airfoil Wall Surface Names ---
 # Instance numbers that make up the airfoil wall
