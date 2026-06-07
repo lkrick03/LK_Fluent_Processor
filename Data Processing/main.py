@@ -51,9 +51,9 @@ else:
     # DATA_SOURCES acts as a priority list. If duplicates exist, the one with the higher Version number wins.
     # If versions are identical, they are treated as duplicates.
     DATA_SOURCES = [
-        # Example: Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414.6.5.6\5.6.1.1.NG"),
+        # Example: Path(r"C:\Users\<YOUR_USERNAME>\Documents\...\<CONFIG>"),
     ]
-    OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Comparisons\Manual_Run")
+    OUTPUT_DIR = Path(".") / "Manual_Run_Output"  # Override in local_config.py via a preset
 
     # Comparison Mode
     # Options: 'single', 'turbulence', 'grid', 'mesh', 'version', 'mixed', 'family_grid'

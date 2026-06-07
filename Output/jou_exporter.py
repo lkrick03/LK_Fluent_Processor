@@ -20,7 +20,7 @@ from datetime import datetime
 
 # OUTPUT SETTINGS
 export_filename = "5.6.1.8.G" # Filename (no .jou needed)
-export_directory = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Data_Prepartation\HPC\5.6.1.8.G_setup"
+export_directory = r"."  # Update to your local export directory
 
 # --- 1. Angle of Attack (AoA) Settings ---
 AOA_MODE = "List"  # Options: "Range", "List", "MultiRange"
@@ -42,7 +42,7 @@ AOA_LIST = [0,0.5,1,1.5,2,2.5,3,3.5,4,4.5]
 
 # --- 2. Simulation Parameters ---
 V_MAG = 14.3773     # Velocity magnitude (m/s) Re 300,000 14.3773 m/s, Re 508,718 24.38 m/s, Re 3,000,000 143.773 m/s
-BASE_OUTPUT_DIR = "/home/ljcrick/directories/5.6.1.8.G" 
+BASE_OUTPUT_DIR = "/home/<HPC_USERNAME>/directories/5.6.1.8.G" 
 OUTPUT_FILENAME_BASE = "5.6.1.8.G"  # Base name for output files
 DRAG_REPORT_FILE = "drag-rfile"
 LIFT_REPORT_FILE = "lift-rfile"

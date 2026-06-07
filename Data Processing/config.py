@@ -99,42 +99,23 @@ DATA_MANIPULATIONS = [
 # Preset Registry
 # Define custom runs with predefined data sources, output directory, and comparison modes.
 # Set ACTIVE_PRESET in main.py to the key of the preset you want to run, or None to use manual settings.
+#
+# LOCAL PATHS: Your machine-specific presets are loaded from local_config.py (gitignored).
+# To set up: copy local_config.example.py → local_config.py and fill in your paths.
 
-RUN_PRESETS = {
-    "single_4.3.1.G": {
-        "name": "4.3.1.G Single Run",
-        "data_sources": [
-            Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.3.G"),
-            Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.G"),
-            Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.5.G"),
-            Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.6.G"),     
-        ],
-        "output_dir": Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.4\4.3\4.3.1\4.3.1.G"),
-        "comparison_mode": "single",
-        "aoa_filter": []
-    },
-
-    "single_4.3.2.NG": {
-        "name": "4.3.2.NG Single Run",
-        "data_sources": [
-            Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.1.NG"),
-        ],
-        "output_dir": Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Singular_Data\2414.6.4\4.3\4.3.2\4.3.2.1.NG"),
-        "comparison_mode": "single",
-        "aoa_filter": []
+try:
+    from local_config import RUN_PRESETS
+except ImportError:
+    # Fallback: example presets with placeholder paths for new users
+    RUN_PRESETS = {
+        # "single_<CONFIG>": {
+        #     "name": "<CONFIG> Single Run",
+        #     "data_sources": [
+        #         Path(r"C:\Users\<YOUR_USERNAME>\Documents\Thesis\...\<CONFIG>"),
+        #     ],
+        #     "output_dir": Path(r"C:\Users\<YOUR_USERNAME>\Documents\Thesis\...\Processed_Data\<CONFIG>"),
+        #     "comparison_mode": "single",
+        #     "aoa_filter": []
+        # },
     }
-        #"turbulence_4.3": {
-        #"name": "4.3 Turbulence Comparison",
-        #"data_sources": [
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.NG"),
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.4.NG"),
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.3.4.NG"),
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.1.4.G"),
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.2.4.G"),
-            #Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\2414_006_004.3\4.3.3.4.G"),
-        #],
-        #"output_dir": Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Comparisons\2414.6.4.3\Turbulence_comp"),
-        #"comparison_mode": "turbulence",
-        #"aoa_filter": [0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,20]
-    #}
-}
+

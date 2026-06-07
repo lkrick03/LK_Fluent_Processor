@@ -25,7 +25,7 @@ from datetime import datetime
 
 # OUTPUT SETTINGS
 export_filename = "1.2.1.7  .NG_0.05_0.8" # Filename (no .jou needed)
-export_directory = r"C:\Users\lukek\OneDrive\Documents\Rocketry_ANSYS\OMEGA\Fluent\Setup_Jou\HPC\1.2.1.7.NG_setup"
+export_directory = r"."  # Update to your local export directory
 
 # --- 1. Mach Settings ---
 MACH_MODE = "List"  # Options: "Range", "List", "MultiRange"
@@ -53,7 +53,7 @@ GAUGE_PRESSURE = 98900  # Gauge Pressure (Pa)
 TEMPERATURE = 300       # Temperature (K)
 TURB_INTENSITY = 5      # Turbulent Intensity (%)
 TURB_VISCOSITY = 10     # Turbulent Viscosity Ratio
-BASE_OUTPUT_DIR = "/home/ljcrick/directories/OMEGA/1.2.1.7.NG" 
+BASE_OUTPUT_DIR = "/home/<HPC_USERNAME>/directories/OMEGA/1.2.1.7.NG" 
 OUTPUT_FILENAME_BASE = "1.2.1.7.NG"  # Base name for output files
 DRAG_REPORT_FILE = "report-file-0" #make sure the report definiton has an output file and is named accordingly
 ITERATIONS = 2400  # Number of iterations to run

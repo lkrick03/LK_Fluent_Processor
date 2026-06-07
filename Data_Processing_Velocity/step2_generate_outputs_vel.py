@@ -82,7 +82,7 @@ def main(config=None):
             _OUTPUT_DIR = RUN_PRESETS[ACTIVE_PRESET].get("output_dir", Path("."))
             _COMPARISON_MODE = RUN_PRESETS[ACTIVE_PRESET].get("comparison_mode", "single")
         else:
-            _OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Comparisons\Manual_Run")
+            _OUTPUT_DIR = Path(".") / "Manual_Run_Output"  # Override in local_config.py via a preset
             _COMPARISON_MODE = 'grid'
         _XY_DATA_SOURCE_DIRS = []
         _POSITION_MAP = POSITION_MAP

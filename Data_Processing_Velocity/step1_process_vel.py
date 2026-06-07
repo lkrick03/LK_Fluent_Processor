@@ -38,7 +38,7 @@ if ACTIVE_PRESET and ACTIVE_PRESET in RUN_PRESETS:
 else:
     print("Loading Manual Configuration (ACTIVE_PRESET is None or Invalid)")
     DATA_SOURCES = []
-    OUTPUT_DIR = Path(r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fluent\Directories\Processed_Data\Comparisons\Manual_Run")
+    OUTPUT_DIR = Path(".") / "Manual_Run_Output"  # Override in local_config.py via a preset
     COMPARISON_MODE = 'grid'
     VELOCITY_FILTER = []
 

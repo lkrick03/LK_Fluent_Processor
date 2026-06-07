@@ -25,3 +25,9 @@ build/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Local config (contains machine-specific paths — never commit)
+local_config.py
+
+# Log files
+*.log

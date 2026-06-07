@@ -25,7 +25,7 @@ python jou_exporter.py
 | `AOA_LIST` | Explicit list of AoA values | `[0, 0.5, 1, 1.5, 2, ...]` |
 | `AOA_START/END/STEP` | Range mode parameters | `5` to `20`, step `1.0` |
 | `V_MAG` | Freestream velocity (m/s) | `14.3773` (Re 300,000) |
-| `BASE_OUTPUT_DIR` | HPC output path (Linux) | `/home/ljcrick/directories/...` |
+| `BASE_OUTPUT_DIR` | HPC output path (Linux) | `/home/<HPC_USERNAME>/directories/...` |
 | `ITERATIONS` | Solver iterations per AoA | `1200` |
 | `TEST_MODE` | Apply BCs without solving | `True` / `False` |
 

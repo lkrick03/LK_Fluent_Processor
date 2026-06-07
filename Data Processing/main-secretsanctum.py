@@ -27,8 +27,8 @@ from cfd_functions import (
 # ==================== USER CONFIGURATION ====================
 
 # Input/Output Directories
-BASE_PATH = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G"
-OUTPUT_DIR = r"C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_004.3\4.3.1.3.G"
+BASE_PATH = r"."  # Update to your data directory
+OUTPUT_DIR = r"."  # Update to your output directory
 
 # Configuration Extraction Method
 CONFIG_EXTRACTION_METHOD = 'case_file'  # Options: 'case_file' or 'folder'
