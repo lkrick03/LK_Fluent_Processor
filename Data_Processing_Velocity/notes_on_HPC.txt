@@ -1,0 +1,33 @@
+ssh ljkrick@10.92.50.199 (ljkrick is my username, just use yours)
+vncserver
+ss -peanuts | grep vnc 
+ssh -L 5902:localhost:5902 ljkrick@10.92.50.199
+
+
+Download tiger vnc
+Make sure you have access before hand (you may need to get help from Ben)
+
+
+
+STARTING
+Start up powershell
+Run command 1, if this does not work, it is because you do not have access. @10.92.50.199 is the specific call out for totoro
+Then run command two
+then run command three
+You are looking for a port number, in this case, my port number 5902. This may change so you may have to keep checking if you run command 2
+Then, in a new window, run command 4
+open tiger vnc (make sure to download the viewer)
+run ljkrick@5902
+load the command terminal
+run ml load apps/ansys/fluent/25.2
+then type fluent
+
+
+To move files from your computer to the HPC run this command
+scp -r "C:\Users\lukek\OneDrive\Documents\Thesis\NACA_2414_2D\Fleunt\Directories\2414_006_005\1.1.1_C" ljkrick@10.92.50.199:/home/ljcrick 
+where everything after the colon is the folder you want to move it to and in the parentheses is the file you want to move
+Note it copies these files does not move them
+
+To move files from the HPC to your computer, run
+scp -r ljkrick@10.92.50.199:/home/ljcrick/1.1.C "C:\Users\lukek\Downloads”
+Where everything after the colon is what you want to move and in the parentehse is where you want to move it to (reversed from the other step)
